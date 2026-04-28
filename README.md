@@ -44,13 +44,13 @@ Session 1:  /turboplan <任务>     # 唯一规划入口，按复杂度自动分
               ↓                    # turbo halt 文案明确要求 fresh session
 Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement → /finalize
               ↓                    # /finalize 内部已 commit + push + PR（自动判断单 PR 或拆分）
-            完成
+            /finalize
 ```
 
 **两个常见决策**（详见下文对应章节）：
 
 - **加深规划思辨？** 把 gstack 的 `/gstack-office-hours`（前置）和 `/gstack-autoplan`（plan 文件评审）嫁接到 `/turboplan` 前后——见 [gstack 怎么嫁接](#gstack-怎么嫁接进来)。
-- **吃透关键代码？** 把 `/implement-plan` 换成 `/old-code`（本仓库自定义 skill），慢档反问/临摹模式——见 [`/old-code`](#old-code-build-阶段的慢档古法编程)。
+- **想用古法编程？** 把 `/implement-plan` 换成 `/old-code`（本仓库自定义 skill），文档先行，原理反问/临摹模式——见 [`/old-code`](#old-code-build-阶段的慢档古法编程)。
 
 ---
 
