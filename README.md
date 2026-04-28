@@ -231,35 +231,134 @@ brew install git jq gh && npm i -g @openai/codex && gh auth login
 
 ## 命令速查
 
-### Plan：按强度选
+按"什么时候调"分类，不严格遵循 turbo 自家目录划分。带 ⭐ 的是**主路径**（80% 时间用这几个就够）；带 🪆 的会被某个 pipeline 内部覆盖（比如 `/finalize` 内部已经叫 `/polish-code`），但单独跑也合法。
+
+### 1. 入口：根据任务类型选一个
 
 | 场景 | 命令 |
 |---|---|
-| **任何任务的入口**（按复杂度自动路由 direct/plan/spec） | `/turboplan` |
+| ⭐ **任何任务的入口**（按复杂度自动路由 direct/plan/spec） | `/turboplan` |
+| ⭐ 临时小改、不写 plan，直接 implement → finalize | `/implement` |
+| ⭐ 已有 plan 文件，**开新 session** 实施 | `/implement-plan` |
+| 已有 spec，挑下一个 shell 走 expand → refine → halt | `/pick-next-shell` |
+| 从 GitHub 挑最热的 issue 来做 | `/pick-next-issue` |
+| **想吃透关键逻辑**（并发 / 锁 / 状态机 / 性能敏感路径） | `/old-code`（Build 阶段慢档，本仓库自定义） |
+| 项目体检 / 上手新项目（项目级 pipeline） | `/audit`、`/onboard` |
+
+### 2. Plan / Spec 单独用（绕过 `/turboplan` 自动路由）
+
+| 场景 | 命令 |
+|---|---|
+| 找已有同类实现 / 复用工具，不写 plan | `/survey-patterns` |
+| 直接起 plan / spec / shells | `/draft-plan`、`/draft-spec`、`/draft-shells` |
+| 把一个 shell 展成具体步骤 | `/expand-shell` |
+| review 计划文件（plan / spec / shells，含 peer review） | `/review-plan` |
+| review → evaluate → apply → 再 review，迭代到稳定 | `/refine-plan` |
+
+### 3. gstack（Plan 阶段加固，可选）
+
+| 场景 | 命令 |
+|---|---|
 | 还没决定要不要做、想被挑战 6 个尖锐问题（前置） | `/gstack-office-hours` |
-| 已经有 plan 文件，要 CEO + 设计 + 工程 + DX 四角色 review 加固（评审） | `/gstack-autoplan` |
-| 单维度深挖：只想要 CEO / 设计师 / 工程经理 / DX 一种视角 | `/gstack-plan-ceo-review`、`/gstack-plan-design-review`、`/gstack-plan-eng-review`、`/gstack-plan-devex-review` |
-| 想跳过 turboplan 的复杂度判断，直接写 plan 文件 | `/draft-plan` → `/refine-plan` |
-| 已有 plan 文件，开新 session 实施 | `/implement-plan` |
-| 已有 spec，挑下一个 shell 实施 | `/pick-next-shell` |
+| 已有 plan 文件 → CEO+设计+工程+DX 四角色 review | `/gstack-autoplan` |
+| 单角色 review：CEO / 设计 / 工程 / DX | `/gstack-plan-{ceo,design,eng,devex}-review` |
+| autoplan 提问偏好调优 | `/gstack-plan-tune` |
+| 跨 session 学习记录（gstack 侧） | `/gstack-learn` |
 
-### Build / Ship / Debug（turbo 主场）
+完整 keep-list：见下方 [gstack 8 个保留 skill](#gstack-当前保留的-skill共-8-个由-gstack-keeptxt-控制)。
+
+### 4. Code QA / 审查 / 重构
 
 | 场景 | 命令 |
 |---|---|
-| 临时小改、不写 plan | `/implement` |
-| **想吃透关键逻辑（并发 / 锁 / 状态机 / 性能敏感路径），不让 AI 直接糊代码** | `/old-code`（Build 阶段慢档，本仓库自定义 skill） |
-| 收尾 4-phase（polish → changelog → self-improve → split analysis → /ship 或 /split-and-ship） | `/finalize`（自动跟在 `/implement*` 后面，手写代码后也可以单独叫） |
-| **独立** ship 单 PR（手写代码后跳过 polish 直接收尾；不要接在 `/finalize` 后面，会重复） | `/ship` |
-| **独立** ship 拆分（多个 reviewable unit，分多个 commit/branch/PR；同上，独立调用） | `/split-and-ship` |
-| 排查 bug | `/investigate` |
-| 代码 / PR 审查 | `/review-code`、`/review-pr`、`/peer-review` |
-| PR 评论循环 | `/fetch-pr-comments`、`/reply-to-pr-conversation`、`/resolve-pr-comments` |
-| 项目体检 / 上手新项目 | `/audit`、`/onboard` |
-| 依赖升级 | `/update-dependencies` |
-| 改进点 backlog | `/note-improvement`（写入 `.turbo/improvements.md`）→ `/implement-improvements`（按 lane 跑） |
-| 升级 turbo 自身 | `/update-turbo`（turbo 自带的自我升级 skill；只升 turbo，不动 gstack） |
-| 跨 session 学习提取 | `/self-improve`（也是 `/finalize` 第 3 phase） |
+| ⭐ 收尾 4-phase（polish → changelog → self-improve → ship/split-and-ship） | `/finalize`（自动跟在 `/implement*` 后面） |
+| 🪆 polish 循环（stage→fmt→lint→test→review→evaluate→apply→smoke，循环到稳） | `/polish-code` |
+| 多角度 code review（bugs / security / API / consistency / simplicity / 测试覆盖） | `/review-code`（不传 type 就并行跑全部） |
+| 简化代码 / reuse 检查 | `/simplify-code` |
+| 找死代码 | `/find-dead-code` |
+| 出仓库架构报告（`.turbo/codebase-map.md` + html） | `/map-codebase` |
+| 出威胁模型（`.turbo/threat-model.md`） | `/create-threat-model` |
+| 加载本仓库代码风格规则（mirror / reuse / symmetry） | `/code-style`（通常 `/implement` 自动调） |
+| 前端设计指引 | `/frontend-design`（`/audit`、`/onboard`、`/map-codebase` 内部会调） |
+
+### 5. 测试
+
+| 场景 | 命令 |
+|---|---|
+| 烟雾测试（启动应用、点几下确认能用） | `/smoke-test` 🪆（也是 `/polish-code` 的一步） |
+| 多层级探索性测试（基础 / 复杂 / 对抗 / 跨 cutting） | `/exploratory-test` |
+| 写测试计划（`.turbo/test-plan.md`） | `/create-test-plan` |
+
+### 6. Debug / 回忆 / 解释
+
+| 场景 | 命令 |
+|---|---|
+| ⭐ 系统化 root cause 分析 | `/investigate` |
+| 找已发生的实施推理（按 commit / 文件） | `/recall-reasoning` |
+| 解释当前光标 / 错误 / question / 任意 artifact | `/explain-this` |
+
+### 7. Findings 处理
+
+| 场景 | 命令 |
+|---|---|
+| 解读外部反馈（PR 评论 / AI review / 人评） | `/interpret-feedback` |
+| 对抗式 triage：哪条 finding 真的要 fix | `/evaluate-findings` |
+| 把 evaluated findings 应用到代码 | `/apply-findings` |
+| evaluated findings → 走 direct 还是 plan 的派发器 | `/resolve-findings` |
+
+### 8. Git / GitHub
+
+| 场景 | 命令 |
+|---|---|
+| 选文件 stage | `/stage` |
+| stage + commit / + push 一条龙 | `/stage-commit`、`/stage-commit-push` |
+| 已 staged → commit / + push | `/commit-staged`、`/commit-staged-push` |
+| **独立** ship 单 PR（跳过 polish；不要接在 `/finalize` 后面，会重复） | `/ship` |
+| **独立** ship 拆分（多个 reviewable unit，分多个 commit/branch/PR） | `/split-and-ship` |
+| 创建 / 更新 PR（不 commit，只动 PR 本体） | `/create-pr`、`/update-pr` |
+| ⭐ 完整 PR review（拉评论 → review → evaluate → dispatch） | `/review-pr` |
+| 拉 PR 上未解决的评论 | `/fetch-pr-comments` |
+| ⭐ 处理 PR 评论循环（修 + 答 + 回） | `/resolve-pr-comments` |
+| 写答复 reviewer 问题（含从 transcript 回忆） | `/answer-reviewer-questions` |
+| 上传 PR 答复 | `/reply-to-pr-threads`、`/reply-to-pr-conversation` |
+
+### 9. 外部模型咨询
+
+| 场景 | 命令 |
+|---|---|
+| 独立 peer review（codex 跑） | `/peer-review`（`/review-code`、`/review-plan`、`/review-pr` 内部会调） |
+| codex 单跑 code review | `/codex-review` |
+| 多轮咨询 codex | `/consult-codex` |
+| codex CLI 自治执行任务 | `/codex-exec` |
+| ChatGPT Pro 会诊（最后一招，问题硬到 codex 也搞不定） | `/consult-oracle` |
+
+### 10. 依赖 / Tooling 检查
+
+| 场景 | 命令 |
+|---|---|
+| 看哪些依赖过期 / 漏洞 | `/review-dependencies` |
+| 升级依赖（带 breaking change 调研） | `/update-dependencies` |
+| 看 linter / formatter / hook / CI 缺什么 | `/review-tooling` |
+| 看 CLAUDE.md / AGENTS.md / MCP / hooks / 跨工具兼容性 | `/review-agentic-setup` |
+
+### 11. 学习 / 改进 backlog
+
+| 场景 | 命令 |
+|---|---|
+| 把当前发现的小改记到 backlog | `/note-improvement`（写 `.turbo/improvements.md`） |
+| 跑 backlog 一条 lane（direct / investigate / plan，每 session 一条） | `/implement-improvements` |
+| 抽出本 session 学到的东西 | `/self-improve`（也是 `/finalize` 第 3 phase） |
+
+### 12. 元 / 维护
+
+| 场景 | 命令 |
+|---|---|
+| 升级 turbo 自身 | `/update-turbo`（turbo 自带；只升 turbo，不动 gstack） |
+| 写 / 更新 changelog | `/create-changelog`、`/update-changelog` |
+| 写 / 改 skill | `/create-skill` |
+| 从代码库挖 project-specific skill | `/create-project-skills` |
+| 老 `.turbo/` 文件迁移（plan / spec / improvements） | `/migrate-turbo-files` |
+| 把改进推回上游 turbo | `/contribute-turbo`（默认 `excludeSkills` 里禁用，需要 fork 才能用） |
 
 ### gstack 当前保留的 skill（共 8 个，由 `gstack-keep.txt` 控制）
 
@@ -275,6 +374,8 @@ brew install git jq gh && npm i -g @openai/codex && gh auth login
 | `/gstack-learn` | 跨 session 学习记录 |
 
 > 砍掉的 35 个（含会重装 Playwright 的 `/gstack-upgrade`、bare `/gstack` browse skill，以及设计系统 / QA / deploy 链 / 安全围栏 / 浏览器栈等）turbo 那侧都有等价或更精简的替代。要找回某个：编辑 `gstack-keep.txt` 取消注释对应行，重跑 `./install.sh`。升级 gstack 一律用 `./install.sh` 而不是 `/gstack-upgrade`（见[升级](#升级)）。
+
+> 完整 turbo skill 列表（按 turbo 自家目录分类）见 turbo 仓库的 [All Skills](https://github.com/tobihagemann/turbo#all-skills) 表格——本节挑了用户可调用的 user-facing skill，跳过了纯内部 rule 文件（`/commit-rules`、`/changelog-rules`、`/github-voice` 这些被别的 skill 内部 reference，不直接调用）。
 
 ---
 
