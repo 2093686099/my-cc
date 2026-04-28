@@ -27,7 +27,10 @@ gstack-plan-tune
 gstack-learn
 
 # --- Self-upgrade gstack ---
-gstack-upgrade
+# Removed by default: /gstack-upgrade calls gstack's ./setup, which reinstalls
+# Playwright Chromium and rebuilds node_modules — bypassing all the work
+# install.sh does to avoid that. Use ./install.sh to update gstack instead.
+# gstack-upgrade
 
 # --- OPTIONAL: bare /gstack skill (= the headless browser/QA tool) ---
 # Uncomment to keep. By default removed because turbo's smoke-test/exploratory-test

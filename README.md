@@ -56,7 +56,7 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | **`gh` CLI** | turbo 的 `/review-pr` / `/fetch-pr-comments` / `/create-pr` / `/resolve-pr-comments` 等都走 `gh` | **不检查**，调用 skill 时才报错 | `brew install gh && gh auth login` |
 | **`codex` CLI** | turbo `/finalize` Phase 3 (peer-review) 和裸 `/peer-review` 必备；turbo 把它当强依赖 | **不检查** | `npm install -g @openai/codex` |
 | Claude Code | 这一切的运行环境 | — | 见 [docs.anthropic.com](https://docs.anthropic.com/en/docs/claude-code) |
-| ~~`bun`~~ | 老版本要求；现在 `install.sh` 不调 gstack `./setup` 了，bun 不再是 install 的依赖。如果你以后跑 `/gstack-upgrade` 让 gstack 自己更新，那一边仍然需要 bun | — | `curl -fsSL https://bun.sh/install \| bash`（仅当你打算用 `/gstack-upgrade`） |
+| ~~`bun`~~ | 老版本要求；现在 `install.sh` 不调 gstack `./setup` 了，bun 不再是 install 的依赖 | — | — |
 
 **可选**：
 
@@ -80,7 +80,7 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | 把 turbo 每个 skill 平铺到 claude skills 目录（已排除项跳过） | `~/.claude/skills/<skill>/` |
 | **把 `.turbo/` 加进全局 gitignore**（turbo 在每个项目根写 plans / specs / improvements，不忽略每个 repo 都会冒一堆 untracked） | `~/.config/git/ignore`（或 `git config --global core.excludesfile` 指定的文件） |
 | 把本仓库 `skills/` 下的自定义 skill 同步过去 | `~/.claude/skills/<skill>/` |
-| **按 `gstack-keep.txt` 给 keep-list 里的 gstack skill 建 symlink**（替代 `./setup` 的 `link_claude_skill_dirs`）：先调 `gstack-patch-names` 把 `name:` 字段加上 `gstack-` 前缀，再 sweep 旧 wrapper，再 `ln -s` 9 个 keep 项 | `~/.claude/skills/gstack-<name>/SKILL.md` → `gstack/<dir>/SKILL.md` |
+| **按 `gstack-keep.txt` 给 keep-list 里的 gstack skill 建 symlink**（替代 `./setup` 的 `link_claude_skill_dirs`）：先调 `gstack-patch-names` 把 `name:` 字段加上 `gstack-` 前缀，再 sweep 旧 wrapper，再 `ln -s` 8 个 keep 项 | `~/.claude/skills/gstack-<name>/SKILL.md` → `gstack/<dir>/SKILL.md` |
 | **防御检查**：扫 `~/.claude/settings.json` 是否被 gstack 写入了 SessionStart hook | 仅 WARN，不擅自改 |
 | **追加 turbo 的 `CLAUDE-ADDITIONS.md` 到 `~/.claude/CLAUDE.md`**（带 marker，幂等） | `~/.claude/CLAUDE.md` |
 
@@ -88,9 +88,9 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 
 **为什么不跑 gstack 自带的 `./setup`：** `./setup` 强制下载 ~500MB Playwright Chromium、构建 90MB browse 二进制、跑 `bun install`（700MB node_modules），全是为了 `/browse` `/qa` `/design-review` 这些浏览器系 skill 服务的——而 keep-list 里这些 skill 一个不留。gstack 没有 `--skip-browser` 之类的旗标可以绕过（只有 `--prefix` `--team` `--host` `GSTACK_SKIP_COREUTILS`），所以 `install.sh` 直接跳过 `./setup`，自己重写它必要的两步：先调 `gstack-patch-names`（gstack bin/ 里的纯 bash 工具）把源 SKILL.md 里 `name: office-hours` 改成 `name: gstack-office-hours`，再按 keep-list 给每个 kept skill 建 symlink。`bin/gstack-update-check`、`bin/gstack-config` 这些 keep 列表里的 skill 实际调用的运行时脚本，都是纯 bash，不依赖 node_modules / Playwright，所以这样跳过完全 OK。
 
-**`/gstack-upgrade` 警告：** 这个 skill 内部会 `cd ~/.claude/skills/gstack && ./setup`，**绕过我们的跳过逻辑**——意味着它会重新装 Playwright + 重建 node_modules + 重新生成所有 42 wrapper。要更新 gstack 请用 `./install.sh`（它做 `git fetch + reset --hard origin/main`，等价拉最新 + 不会触发那些副作用）。
+**`/gstack-upgrade` 默认已注释掉：** 这个 skill 内部会 `cd ~/.claude/skills/gstack && ./setup`，**绕过我们的跳过逻辑**——意味着它会重新装 Playwright + 重建 node_modules + 重新生成所有 42 wrapper。所以 `gstack-keep.txt` 里它默认是注释状态、不暴露成 slash command。要更新 gstack 一律用 `./install.sh`（它做 `git fetch + reset --hard origin/main`，等价拉最新 + 不会触发那些副作用）。
 
-**为什么用 keep-list 控注册项：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表。42 wrapper + 1 bare = 43 个 ≈ 13k 字符 ≈ 3.5k tokens 常驻。只链 9 个之后常驻 ~800 tokens。要加回某个：编辑 `gstack-keep.txt`（里面已经把全部可选项注释列出来了，按类别分组：build / QA / design / security / safety guards / state），取消注释对应行 + 重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动。
+**为什么用 keep-list 控注册项：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表。42 wrapper + 1 bare = 43 个 ≈ 13k 字符 ≈ 3.5k tokens 常驻。只链 8 个之后常驻 ~800 tokens。要加回某个：编辑 `gstack-keep.txt`（里面已经把全部可选项注释列出来了，按类别分组：build / QA / design / security / safety guards / state），取消注释对应行 + 重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动。
 
 `turbo.config.json` 现在 `excludeSkills` 只有 `contribute-turbo`（clone 模式自动加，没 fork 跑这个会失败）；同时 `configVersion`、`lastUpdateHead` 由 `install.sh` 每次重跑时刷新，跟上游 turbo 的版本协调。其它 turbo skill 全装。
 
@@ -125,7 +125,7 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | 改进点 backlog | `/note-improvement`（写入 `.turbo/improvements.md`）→ `/implement-improvements`（按 lane 跑） |
 | 跨 session 学习提取 | `/self-improve`（也是 `/finalize` 第 3 phase） |
 
-### gstack 当前保留的 skill（共 9 个，由 `gstack-keep.txt` 控制）
+### gstack 当前保留的 skill（共 8 个，由 `gstack-keep.txt` 控制）
 
 | 命令 | 用途 |
 |---|---|
@@ -137,9 +137,8 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | `/gstack-plan-devex-review` | 单角色：开发者体验 review |
 | `/gstack-plan-tune` | autoplan 提问偏好调优 |
 | `/gstack-learn` | 跨 session 学习记录 |
-| `/gstack-upgrade` | 升级 gstack 自身 |
 
-> 砍掉的 33 个（设计系统、QA、deploy 链、安全围栏、浏览器栈等）turbo 那侧都有等价或更精简的替代。要找回某个：编辑 `gstack-keep.txt` 加一行，重跑 `./install.sh`。
+> 砍掉的 34 个（包含会重装 Playwright 的 `/gstack-upgrade`，以及设计系统、QA、deploy 链、安全围栏、浏览器栈等）turbo 那侧都有等价或更精简的替代。要找回某个：编辑 `gstack-keep.txt` 取消注释对应行，重跑 `./install.sh`。升级 gstack 一律用 `./install.sh` 而不是 `/gstack-upgrade`（见[升级](#升级)）。
 
 ---
 
@@ -223,11 +222,11 @@ You: /gstack-autoplan
 
 ## 冲突怎么处理
 
-经过 `skill_prefix=true` + 砍 wrapper 之后，**已经没有撞名了**——gstack 那边的 `/investigate` `/ship` `/review` 等同名 skill 都不在列表里，只剩 9 个 `/gstack-*` 前缀的规划/学习类 skill。
+经过 `skill_prefix=true` + keep-list 控注册之后，**已经没有撞名了**——gstack 那边的 `/investigate` `/ship` `/review` 等同名 skill 都不在列表里，只剩 8 个 `/gstack-*` 前缀的规划/学习类 skill。
 
 - `skill_prefix=true`：所有保留的 gstack skill 都带 `gstack-` 前缀
 - `proactive=false`：gstack skill 自身运行时不会主动建议其它 gstack skill
-- **prune 注册项**：删掉用不到的 gstack 包装目录 + bare `gstack/SKILL.md`，从 43 → 9，省 ~2.7k tokens 常驻
+- **keep-list 控注册**：只链 keep-list 里的，不在的根本不创建。43 → 8，省 ~2.7k tokens 常驻
 
 turbo 这边仍然按它原有的方式自动路由（`/turboplan` `/implement-plan` `/finalize` 等都是裸命名）。
 
@@ -235,18 +234,64 @@ turbo 这边仍然按它原有的方式自动路由（`/turboplan` `/implement-p
 
 ## 升级
 
-**用 `./install.sh`，不要用 `/gstack-upgrade`。**
+**一句话：在仓库根目录跑 `./install.sh`。**
 
-- ✅ `./install.sh`：`git fetch + reset --hard origin/main` 拉两边最新，按 keep-list 重链 symlink。幂等、零副作用、无 Playwright。
-- ❌ `/gstack-upgrade`：内部会 `cd ~/.claude/skills/gstack && ./setup`，绕过我们的跳过逻辑——会重新下 ~500MB Playwright Chromium、重建 node_modules、重新生成所有 42 wrapper。
+```bash
+cd path/to/my-claude-setup
+./install.sh
+```
 
-如果只想升 turbo（不动 gstack），用 `/update-turbo` 也可以，那一边不踩 Playwright 雷。
+它会做：
+- gstack：`git fetch --depth 1 + reset --hard origin/main` 拉最新源码，按 keep-list 重链 8 个 symlink（不触发 ./setup，所以不下 Playwright）
+- turbo：`git pull --ff-only` 拉最新，按 `excludeSkills` 重新平铺 skill
+- 顺便刷新 `~/.turbo/config.json` 的 `lastUpdateHead` / `configVersion`
+
+幂等，可以随时重跑。
+
+**不要用 `/gstack-upgrade`**：它内部会 `cd ~/.claude/skills/gstack && ./setup`，绕过所有跳过逻辑——会重新下 ~500MB Playwright Chromium、重建 700MB node_modules、重新生成所有 42 wrapper。这就是为什么它在 `gstack-keep.txt` 里默认被注释掉、不暴露成 slash command。
+
+如果你只想升 turbo（不动 gstack），可以单独用 `/update-turbo`——那一边不踩 Playwright 雷。
 
 ---
 
-## 自己写的 skill
+## 自己写的 skill 放哪？
 
-往本仓库 `skills/` 目录加新 skill，重跑 `install.sh` 即可同步到 `~/.claude/skills/`。这一层是给"我自己反复用、但不属于 turbo / gstack"的小习惯准备的——比如团队约定、特定项目快捷动作。
+**放在本仓库 `skills/` 目录下**——`install.sh` 第 6 步会把它们 `cp -r` 到 `~/.claude/skills/`。
+
+```text
+my-claude-setup/
+└── skills/
+    └── my-skill/
+        └── SKILL.md      # 你的 skill
+```
+
+加完重跑 `./install.sh` 就生效。
+
+**为什么不放 `~/.turbo/repo/skills/` 或 `~/.claude/skills/gstack/<name>/`？**
+
+那两个目录都是上游仓库的工作区——本仓库的 `install.sh` 每次跑都会对它们做：
+
+- turbo：`cd ~/.turbo/repo && git pull --ff-only`
+- gstack：`cd ~/.claude/skills/gstack && git fetch + git reset --hard origin/main`
+
+`reset --hard` 会**直接把你写的东西 nuke 掉**；`pull --ff-only` 在你本地有改动时会拒绝合并。再加上你的 skill 没进 git，换台机器就丢。
+
+**`my-claude-setup/skills/` 这一层的设计意义：**
+
+1. **你自己拥有的 skill 层**——和 turbo / gstack 解耦，不被上游 git reset 影响
+2. **跟 dotfiles 一起进 git**——换机器只要 clone 这个仓库 + `./install.sh` 就回来了
+3. **不污染上游**——你的小习惯 / 团队约定不会被推回 turbo 或 gstack
+
+什么样的东西适合放进来：
+- 团队约定的工作流脚本（"我们这个项目的 PR 模板"、"我们的 release checklist"）
+- 反复用的私人快捷动作
+- 对 turbo / gstack skill 的薄包装（比如带固定参数的）
+- 自己写的实验性 skill
+
+什么样的东西**不适合**放进来：
+- 改 turbo 自己的 skill 行为 → 该走 `/contribute-turbo` 提 PR 给上游
+- 改 gstack 自己的 skill 行为 → 同理，不要 fork（参见下面"为什么不 fork"）
+- 跨项目共享的代码片段 → 那是 library 不是 skill
 
 ---
 
