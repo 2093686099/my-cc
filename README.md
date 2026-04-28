@@ -28,7 +28,7 @@ git clone <this-repo> && cd my-claude-setup
 ./install.sh
 ```
 
-依赖 `git`、`jq`、`bun`。gstack 第一次跑 `./setup` 会下载 ~250MB 的 chromium for testing（playwright），等一下。
+前置依赖见下面的[前置依赖](#前置依赖)章节，至少需要 `git` `jq` `bun` `gh` `codex`。gstack 第一次跑 `./setup` 会下载 ~250MB chromium for testing（playwright），等一下。
 
 **用（最小三步走，turbo 主路径）：**
 
@@ -43,6 +43,28 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 `/turboplan` **不是中小任务专用**——这是 turbo 唯一的规划入口，所有任务都从它进去。它内部按复杂度自动选 Direct / Plan / Spec 三种模式之一。
 
 想加强 Plan 阶段的思辨深度时，gstack 的 `/gstack-office-hours`（前置）和 `/gstack-autoplan`（plan 文件评审）可以嫁接进来，详见下面"gstack 怎么嫁接"。
+
+---
+
+## 前置依赖
+
+`install.sh` **不会替你装** Claude Code 和下面这些工具——按 turbo 的运行模型，缺了之后某些 skill 会在调用时失败而不是安装时失败。
+
+| 工具 | 用途 | install.sh 行为 | 装法 |
+|---|---|---|---|
+| `git` / `jq` | clone、改 JSON | 缺则退出 | `brew install git jq` |
+| `bun` | gstack 自带 `./setup` 用它编译 browser daemon | 缺则警告并继续，gstack ./setup 会失败 | `curl -fsSL https://bun.sh/install \| bash` |
+| **`gh` CLI** | turbo 的 `/review-pr` / `/fetch-pr-comments` / `/create-pr` / `/resolve-pr-comments` 等都走 `gh` | **不检查**，调用 skill 时才报错 | `brew install gh && gh auth login` |
+| **`codex` CLI** | turbo `/finalize` Phase 3 (peer-review) 和裸 `/peer-review` 必备；turbo 把它当强依赖 | **不检查** | `npm install -g @openai/codex` |
+| Claude Code | 这一切的运行环境 | — | 见 [docs.anthropic.com](https://docs.anthropic.com/en/docs/claude-code) |
+
+**可选**：
+
+- `agent-browser`（turbo 浏览器 skill 首选） — 没装会自动 fallback 到 `claude-in-chrome` MCP。一句安装：`npx skills add https://github.com/vercel-labs/agent-browser --skill agent-browser --agent claude-code -y -g`
+- ChatGPT Pro + Chrome（turbo `/consult-oracle` 用，会诊通道）— 不会诊就略
+- statusLine（context 剩余进度条）— 这个仓库默认假设你已经装了 [claude-hud](https://github.com/claude-hud/claude-hud) 插件作为 statusline，turbo 自带的简单 statusLine 不再注入。没装 claude-hud 也行，turbo 流水线本身不依赖它
+
+完整 turbo 前置清单（含 oracle / agent-browser 详细配置）见 [turbo SETUP.md](https://github.com/tobihagemann/turbo/blob/main/SETUP.md)。
 
 ---
 
