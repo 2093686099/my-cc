@@ -158,12 +158,6 @@ You: /implement-plan
 
 ### 关键挂钩点 / 常见疑问
 
-**TDD 怎么走？** turbo 默认不是 TDD（test 在 polish 循环里当 quality gate 用，不是 driver）。要 TDD 节奏，三种挂法（任选其一）：
-
-1. **在 `/turboplan` 任务描述里明示**："使用 TDD：先写失败测试 → 实现 → 重构"。turbo 会顺着写进 plan 的 Implementation Steps，`/implement-plan` 会照着走。
-2. **改 plan 文件 Verification 节**：手动改写 plan 文件，把 Implementation Steps 排成 test-first 节奏（注意要在 `/gstack-autoplan` **之后** halt **之前**改，否则会被 autoplan 改写覆盖）。
-3. **走慢档 `/old-code`**：把 `/implement-plan` 换成 `/old-code`——它默认会按内容路由判断要不要 TDD（算法 / 锁 / 状态机默认 on，UI / 配置默认 off），用户可以"用 TDD" / "跳过 TDD"显式覆盖。详见 [`/old-code`](#old-code-build-阶段的慢档古法编程)。
-
 **`/finalize` 之后还要 `/review-code` 吗？** **不用**。`/finalize` Phase 1 内部已经叫 `/review-code`（而 `/review-code` 又内部并行跑 internal review + `/peer-review`/codex），三层嵌套。例外：单角度精细 scan（`/review-code security`）或手动改完代码不想跑完整 `/finalize` 时单独跑。
 
 **用 `/old-code` 替换 `/implement-plan` 是什么样？** 流程图改成：
