@@ -1,0 +1,22 @@
+# gstack skills to KEEP after install.
+# Anything matching ^gstack-* in ~/.claude/skills/ that is NOT listed here gets removed.
+# Each kept skill costs ~300 chars (~75 tokens) of session context.
+# Re-runnable: install.sh re-applies this list every run.
+# Lines starting with # and blank lines are ignored.
+
+# Think — product interrogation
+gstack-office-hours
+
+# Plan — review pipeline + single-axis reviews
+gstack-autoplan
+gstack-plan-ceo-review
+gstack-plan-eng-review
+gstack-plan-design-review
+gstack-plan-devex-review
+gstack-plan-tune
+
+# Cross-session learning
+gstack-learn
+
+# Self-upgrade gstack
+gstack-upgrade

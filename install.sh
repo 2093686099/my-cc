@@ -63,6 +63,56 @@ if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]
   done
 fi
 
+echo "==> 6. Prune gstack-* skill wrappers to keep-list"
+KEEP_FILE="$REPO_DIR/gstack-keep.txt"
+if [ -f "$KEEP_FILE" ]; then
+  KEEP_PATTERN=$(grep -vE '^\s*(#|$)' "$KEEP_FILE" | paste -sd '|' -)
+  if [ -n "$KEEP_PATTERN" ]; then
+    pruned=0; kept=0
+    for d in "$HOME/.claude/skills"/gstack-*; do
+      [ -d "$d" ] || continue
+      name=$(basename "$d")
+      if echo "$name" | grep -qE "^($KEEP_PATTERN)$"; then
+        kept=$((kept + 1))
+      else
+        rm -rf "$d"
+        pruned=$((pruned + 1))
+      fi
+    done
+    echo "    pruned $pruned, kept $kept (gstack source intact at ~/.claude/skills/gstack/)"
+  else
+    echo "    keep-list empty — keeping all gstack wrappers"
+  fi
+else
+  echo "    no gstack-keep.txt — keeping all gstack wrappers"
+fi
+
+echo "==> 7. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
+TARGET="$HOME/.claude/CLAUDE.md"
+SRC="$HOME/.turbo/repo/CLAUDE-ADDITIONS.md"
+MARK_START="<!-- turbo:claude-additions:start -->"
+MARK_END="<!-- turbo:claude-additions:end -->"
+mkdir -p "$HOME/.claude"
+touch "$TARGET"
+# Demote ## headings to # and skip the file's own preamble (everything before first ## )
+BLOCK=$(awk '/^## /{flag=1} flag{sub(/^## /,"# "); print}' "$SRC")
+if grep -qF "$MARK_START" "$TARGET"; then
+  awk -v s="$MARK_START" -v e="$MARK_END" -v b="$BLOCK" '
+    $0 == s { print; print b; in_block=1; next }
+    $0 == e { in_block=0 }
+    !in_block { print }
+  ' "$TARGET" > "$TARGET.tmp" && mv "$TARGET.tmp" "$TARGET"
+  echo "    refreshed turbo block in $TARGET"
+else
+  {
+    echo ""
+    echo "$MARK_START"
+    echo "$BLOCK"
+    echo "$MARK_END"
+  } >> "$TARGET"
+  echo "    appended turbo block to $TARGET"
+fi
+
 echo
 echo "Done."
-echo "Re-run this script anytime to pull latest gstack + turbo and re-sync skills."
+echo "Re-run this script anytime to pull latest gstack + turbo, re-sync skills, and re-prune."

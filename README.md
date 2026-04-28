@@ -30,15 +30,19 @@ git clone <this-repo> && cd my-claude-setup
 
 依赖 `git`、`jq`、`bun`。gstack 第一次跑 `./setup` 会下载 ~250MB 的 chromium for testing（playwright），等一下。
 
-**用：**
+**用（最小三步走，turbo 主路径）：**
 
 ```text
-1. /gstack-office-hours    # 想清楚到底要不要做
-2. /turboplan              # 写实施计划
-3. /implement-plan → /finalize → /ship
+Session 1:  /turboplan <任务>     # 唯一规划入口，按复杂度自动分流
+              ↓                    # plan/spec 模式会主动 halt
+Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement → /finalize
+              ↓                    # /finalize 内部已经 commit + push + PR
+            完成
 ```
 
-中间任何一步想升级强度，gstack 那一侧的 `/gstack-autoplan`、`/gstack-plan-ceo-review` 都可以接进来。
+`/turboplan` **不是中小任务专用**——这是 turbo 唯一的规划入口，所有任务都从它进去。它内部按复杂度自动选 Direct / Plan / Spec 三种模式之一。
+
+想加强 Plan 阶段的思辨深度时，gstack 的 `/gstack-office-hours`（前置）和 `/gstack-autoplan`（plan 文件评审）可以嫁接进来，详见下面"gstack 怎么嫁接"。
 
 ---
 
@@ -51,8 +55,12 @@ git clone <this-repo> && cd my-claude-setup
 | clone turbo 仓库 | `~/.turbo/repo/` |
 | 把 turbo 每个 skill 平铺到 claude skills 目录 | `~/.claude/skills/<skill>/` |
 | 把本仓库 `skills/` 下的自定义 skill 同步过去 | `~/.claude/skills/<skill>/` |
+| **按 `gstack-keep.txt` 砍掉用不到的 gstack 包装目录**（默认从 42 → 9） | 删 `~/.claude/skills/gstack-*/` 不在 keep 列表里的 |
+| **追加 turbo 的 `CLAUDE-ADDITIONS.md` 到 `~/.claude/CLAUDE.md`**（带 marker，幂等） | `~/.claude/CLAUDE.md` |
 
-**没动 `~/.claude/CLAUDE.md`。**流程指引是给人看的速查表，不该常驻进每次会话上下文，下面那张表就够了。
+**为什么追加 CLAUDE-ADDITIONS：** turbo 的 README 里讲得很死——没装这套 5 条规则，Claude 在嵌套流水线（`/finalize` 之类）里**会静默跳步**。代价 ~250 tokens/会话，换流水线可靠性，值。
+
+**为什么砍 gstack 包装目录：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表。42 个 ≈ 12k 字符 ≈ 3.5k tokens 常驻。砍到 9 个省 ~2.7k tokens。要加回来：编辑 `gstack-keep.txt`，重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动。
 
 `turbo.config.json` 当前是 `excludeSkills: []`——turbo 全装，没排除。
 
@@ -64,78 +72,134 @@ git clone <this-repo> && cd my-claude-setup
 
 | 场景 | 命令 |
 |---|---|
-| 还没决定要不要做、想被挑战 6 个尖锐问题 | `/gstack-office-hours` |
-| 大事，要 CEO + 设计 + 工程 + DX 四角色 review | `/gstack-autoplan` |
-| 单维度深挖：只想要 CEO / 设计师 / 工程经理 / DX 视角 | `/gstack-plan-ceo-review`、`/gstack-plan-design-review`、`/gstack-plan-eng-review`、`/gstack-plan-devex-review` |
-| 中小任务，让 turbo 自己判断走 direct / plan / spec | `/turboplan` |
-| 已经清楚要写啥 plan 文件 | `/draft-plan` → `/refine-plan` → `/review-plan` |
+| **任何任务的入口**（按复杂度自动路由 direct/plan/spec） | `/turboplan` |
+| 还没决定要不要做、想被挑战 6 个尖锐问题（前置） | `/gstack-office-hours` |
+| 已经有 plan 文件，要 CEO + 设计 + 工程 + DX 四角色 review 加固（评审） | `/gstack-autoplan` |
+| 单维度深挖：只想要 CEO / 设计师 / 工程经理 / DX 一种视角 | `/gstack-plan-ceo-review`、`/gstack-plan-design-review`、`/gstack-plan-eng-review`、`/gstack-plan-devex-review` |
+| 想跳过 turboplan 的复杂度判断，直接写 plan 文件 | `/draft-plan` → `/refine-plan` |
+| 已有 plan 文件，开新 session 实施 | `/implement-plan` |
+| 已有 spec，挑下一个 shell 实施 | `/pick-next-shell` |
 
 ### Build / Ship / Debug（turbo 主场）
 
 | 场景 | 命令 |
 |---|---|
-| 实施已写好的 plan 文件 | `/implement-plan` |
 | 临时小改、不写 plan | `/implement` |
-| 收尾（测试 + 润色 + commit） | `/finalize` |
-| 提 PR / 推送 | `/ship` |
+| 收尾 4-phase（polish → changelog → self-improve → commit+push+PR） | `/finalize`（自动跟在 `/implement*` 后面，手写代码后也可以单独叫） |
+| 单独 ship（仅 commit + push + PR，跳过 polish） | `/ship` |
 | 排查 bug | `/investigate` |
 | 代码 / PR 审查 | `/review-code`、`/review-pr`、`/peer-review` |
 | PR 评论循环 | `/fetch-pr-comments`、`/reply-to-pr-conversation`、`/resolve-pr-comments` |
 | 项目体检 / 上手新项目 | `/audit`、`/onboard` |
 | 依赖升级 | `/update-dependencies` |
+| 改进点 backlog | `/note-improvement`（写入 `.turbo/improvements.md`）→ `/implement-improvements`（按 lane 跑） |
+| 跨 session 学习提取 | `/self-improve`（也是 `/finalize` 第 3 phase） |
 
-### gstack 重型工具（按需调用，全部 `/gstack-` 前缀）
+### gstack 当前保留的 skill（共 9 个，由 `gstack-keep.txt` 控制）
 
-| 场景 | 命令 |
+| 命令 | 用途 |
 |---|---|
-| 真浏览器 QA（修 bug / 仅报告） | `/gstack-qa`、`/gstack-qa-only` |
-| 部署链 | `/gstack-ship`、`/gstack-land-and-deploy`、`/gstack-canary` |
-| 安全审计 | `/gstack-cso` |
-| 设计探索 / mockup / 终稿 HTML | `/gstack-design-shotgun`、`/gstack-design-consultation`、`/gstack-design-html` |
-| 性能基线 | `/gstack-benchmark` |
-| 安全围栏 | `/gstack-careful`、`/gstack-freeze`、`/gstack-guard` |
+| `/gstack-office-hours` | YC office-hours 风格 6 forcing question，写设计文档 |
+| `/gstack-autoplan` | 已有 plan 文件 → CEO+设计+工程+DX 四角色 review pipeline |
+| `/gstack-plan-ceo-review` | 单角色：战略/范围 review |
+| `/gstack-plan-eng-review` | 单角色：架构/数据流/边界 review |
+| `/gstack-plan-design-review` | 单角色：UI 设计 review |
+| `/gstack-plan-devex-review` | 单角色：开发者体验 review |
+| `/gstack-plan-tune` | autoplan 提问偏好调优 |
+| `/gstack-learn` | 跨 session 学习记录 |
+| `/gstack-upgrade` | 升级 gstack 自身 |
+
+> 砍掉的 33 个（设计系统、QA、deploy 链、安全围栏、浏览器栈等）turbo 那侧都有等价或更精简的替代。要找回某个：编辑 `gstack-keep.txt` 加一行，重跑 `./install.sh`。
 
 ---
 
+## turbo 的核心执行流程
+
+`/turboplan` 是唯一规划入口，按任务复杂度自动选三种模式：
+
+| 模式 | 触发条件 | 执行链 | 产物 |
+|---|---|---|---|
+| **Direct** | 范围清楚、做法已知，开干即可 | `/implement` → `/finalize` | 不写 plan 文件 |
+| **Plan** | 单 session 能做完，但需先把方法记下来 | `/draft-plan` → `/refine-plan` → `/self-improve` → **★ halt ★** → 新 session：`/implement-plan` → `/implement` → `/finalize` | `.turbo/plans/<slug>.md` |
+| **Spec** | 跨多子系统、需要架构讨论、多 session | `/draft-spec` → `/refine-plan` → `/draft-shells` → `/refine-plan` → `/self-improve` → **★ halt ★** → 每个 shell 一个新 session：`/pick-next-shell` → `/expand-shell` → `/refine-plan` → halt → 再开新 session：`/implement-plan` → `/implement` → `/finalize` | `.turbo/specs/<slug>.md` + `.turbo/shells/*` |
+
+**为什么 halt + 新 session？** turbo 强制纪律——execution 期重新装载 skill、重新跑 pattern survey、重新读上下文，比让 plan 期的 context 漂下去靠谱。规划和实施分会话是 turbo 的设计核心。
+
+**`/finalize` 内部已经 ship。** 它依次跑 `/polish-code`（stage→format→lint→test→review→evaluate→apply→smoke-test 直到稳定）→ `/update-changelog` → `/self-improve` → ship-it（commit + push + PR）。**不要在 `/finalize` 之后再 `/ship`，重复了。**
+
 ## 工作流示例
 
-一个真实的"想做个小工具"流程，从 0 到 PR：
+一个真实的"加缓存层"流程：
 
 ```text
-You: /gstack-office-hours 我想给个人博客加个评论系统
+[Session 1：规划]
 
-Claude: [跑 6 个 forcing questions：谁会用？最窄的楔子是什么？
-        现状是怎么解决的？……]
-        → 输出一份 .turbo/office-hours/<slug>.md
+You: /turboplan 给图片管线加一层 LRU 缓存，命中率指标进 metrics
 
-You: 嗯，问题问到点上了。/gstack-autoplan 这个
+Claude: [分析任务复杂度] → Plan mode
+        [运行 /draft-plan：survey-patterns 找现有缓存实现 → 4 个产品决策升级提问 →
+                          深度讨论文件位置、数据流、边界 → 写入 .turbo/plans/<slug>.md]
+        [运行 /refine-plan：内部 + peer review → evaluate → apply → 再 review 直到稳定]
+        [运行 /self-improve：抽出本 session 学到的东西]
+        ★ halt ★ "Plan ready at .turbo/plans/<slug>.md. Run /implement-plan in a fresh session."
 
-Claude: [并行跑 CEO / 设计 / 工程 / DX 四个角色 review，
-        汇总分歧、给出 6 大决策原则下的判断]
-        → .turbo/plans/<slug>.md，标了哪些是 taste call
+[Session 2：实施 + 收尾]
 
-You: 同意，落地。/implement-plan .turbo/plans/<slug>.md
+You: /implement-plan
 
-Claude: [按 plan 走 implement → finalize：跑测试、polish、commit]
-
-You: /ship
-
-Claude: [推分支、开 PR、贴描述]
+Claude: [resolve 到 .turbo/plans/<slug>.md，读 Context Files 全文]
+        [/implement → /code-style → 写代码]
+        [/finalize 4 phase：polish-code 循环 → update-changelog → self-improve → ship-it]
+        ✓ Tests pass ✓ Committed ✓ Pushed ✓ PR #42 created
 ```
 
-如果只是个 30 行的小修——直接 `/implement` 就行，不必走这一整套。强度跟着任务大小走。
+如果是 30 行的小修——`/turboplan` 会自己路由到 **Direct mode**：跳过 plan 文件，直接 `/implement` → `/finalize`，不打断你。
+
+## gstack 怎么嫁接进来
+
+`/gstack-office-hours` 和 `/gstack-autoplan` 是**对 turbo Plan 阶段的可选增强**，不是替代。它们在 turbo 流程里的接入点：
+
+```text
+[可选前置]
+You: /gstack-office-hours <模糊想法>
+       → ~/.gstack/projects/<slug>/*-design-*.md（设计文档）
+       6 个 forcing question 帮你想清楚到底要不要做、做成什么样
+
+[然后走 turbo 主路径]
+You: /turboplan <更清晰的任务描述>     # 用上面的 design 文档当输入
+       → .turbo/plans/<slug>.md
+
+[可选：4 角色 review 加固 plan 文件]
+You: /gstack-autoplan
+       autoplan 读现有 plan 文件 → 跑 CEO / 设计 / 工程 / DX 四角色 review →
+       自动按 6 大决策原则改写回 plan 文件（带 restore point 自动备份）
+
+[继续 turbo 主路径]
+[Session 2] /implement-plan → ...
+```
+
+**重要事实**（之前的 README 写错了，这里更正）：
+
+- **`/gstack-autoplan` 不是从零生成 plan 的工具**，是 plan 文件**评审**工具。它要求 plan 文件已经存在。所以"`office-hours` → `autoplan` → `implement-plan`"中间必须有 turbo 的 `/draft-plan` 或 `/turboplan` 把 plan 起出来。
+- `/gstack-office-hours` 产出的是设计文档（在 `~/.gstack/projects/`），不是 turbo 格式的 plan 文件。
+- `/gstack-autoplan` 改写 plan 文件时可能引入 gstack 风格段落。turbo `/implement-plan` 读取的是固定结构（`## Pattern Survey` `## Implementation Steps` `## Verification` `## Context Files`），autoplan 加段一般不破坏，但**首次混用建议肉眼检查 plan 文件**。
+
+什么时候用：
+
+- **小事 / 中事 / 不需要被挑战**：纯 turbo（`/turboplan` → halt → `/implement-plan`）。
+- **大事 / 不确定要不要做 / 需要四角色 review 加固**：先 `/gstack-office-hours` → 再 `/turboplan`（draft 出 plan 文件）→ 再 `/gstack-autoplan` 评审 → halt → `/implement-plan`。
 
 ---
 
 ## 冲突怎么处理
 
-精确撞名只有两个：`/investigate` 和 `/ship`。
+经过 `skill_prefix=true` + 砍 wrapper 之后，**已经没有撞名了**——gstack 那边的 `/investigate` `/ship` `/review` 等同名 skill 都不在列表里，只剩 9 个 `/gstack-*` 前缀的规划/学习类 skill。
 
-- **turbo 占用裸命名**——这两个是日常高频动作，让常用的那一边短。
-- **gstack 一侧因 `skill_prefix=true` 自动变成** `/gstack-investigate`、`/gstack-ship`，需要时显式叫。
-- **`proactive=false`** 让 gstack 不主动建议自己那 50 个 skill，自动路由也不会被它的 description 吸过去。turbo 仍然按它原有的方式自动路由。
+- `skill_prefix=true`：所有保留的 gstack skill 都带 `gstack-` 前缀
+- `proactive=false`：gstack skill 自身运行时不会主动建议其它 gstack skill
+- **prune wrapper**：删掉用不到的 gstack 包装目录，从 42 → 9，省 ~2.7k tokens 常驻
 
-撞名的处置原则：高频归裸命名，重型归前缀。
+turbo 这边仍然按它原有的方式自动路由（`/turboplan` `/implement-plan` `/finalize` 等都是裸命名）。
 
 ---
 
@@ -170,7 +234,7 @@ Claude: [推分支、开 PR、贴描述]
 
 抠出来就要长期维护一套手术补丁，gstack 升级一次就重做一次。**不值。**
 
-**全装的代价是按调用付的。** gstack 那几个大 SKILL.md（office-hours 在 26k tokens 量级）只在显式调用时进上下文，平时不烧 token。常驻成本只有 frontmatter description——很小。`proactive=false` 又把"模型主动推荐"那条路堵掉了，所以日常完全不会感觉到 gstack 的存在，需要它的时候 `/gstack-` 一下就在。
+**全装但精修的代价是按调用付的。** gstack 那几个大 SKILL.md（office-hours 在 26k tokens 量级）只在显式调用时进上下文，平时不烧。常驻成本是 frontmatter description——这一条之前我以为很小，实测 42 个 wrapper 一起算下来 ~3.5k tokens/会话，**不算很小**，所以 `install.sh` 里加了 `gstack-keep.txt` 砍 wrapper 这一步，砍到 9 个之后常驻 ~800 tokens，可以接受。
 
 这个取舍不是普适的，但对我够用。
 
