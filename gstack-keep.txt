@@ -1,13 +1,15 @@
-# gstack skills to KEEP after install.
-# Anything matching ^gstack-* in ~/.claude/skills/ that is NOT listed here gets removed.
+# gstack registrations to KEEP after install.
+# Each entry is a registered skill name. Anything not listed here gets removed:
+#   - ~/.claude/skills/gstack-<name>/  (wrappers from skill_prefix=true)
+#   - ~/.claude/skills/gstack/SKILL.md (the bare /gstack browse skill, if `gstack` is listed)
 # Each kept skill costs ~300 chars (~75 tokens) of session context.
 # Re-runnable: install.sh re-applies this list every run.
 # Lines starting with # and blank lines are ignored.
 
-# Think — product interrogation
+# --- Think — product interrogation ---
 gstack-office-hours
 
-# Plan — review pipeline + single-axis reviews
+# --- Plan — review pipeline + single-axis reviews ---
 gstack-autoplan
 gstack-plan-ceo-review
 gstack-plan-eng-review
@@ -15,8 +17,62 @@ gstack-plan-design-review
 gstack-plan-devex-review
 gstack-plan-tune
 
-# Cross-session learning
+# --- Cross-session learning ---
 gstack-learn
 
-# Self-upgrade gstack
+# --- Self-upgrade gstack ---
 gstack-upgrade
+
+# --- OPTIONAL: bare /gstack skill (= the headless browser/QA tool) ---
+# Uncomment to keep. By default removed because turbo's smoke-test/exploratory-test
+# + claude-in-chrome MCP cover the "agent uses a browser" use case.
+# gstack
+
+# --- Below are gstack skills you can opt back in by uncommenting ---
+# Each adds ~75 tokens to per-session overhead.
+#
+# Build / debug:
+# gstack-investigate          # turbo /investigate is preferred
+# gstack-review               # turbo /review-code + /review-pr cover this
+# gstack-ship                 # turbo /finalize already commits + ships
+# gstack-land-and-deploy      # post-ship: merge PR + verify production
+# gstack-canary               # post-deploy console error monitor
+# gstack-benchmark            # page load / Core Web Vitals baselines
+# gstack-benchmark-models     # cross-model latency/cost comparison
+#
+# QA / browser:
+# gstack-qa                   # real-browser QA, fixes bugs found
+# gstack-qa-only              # report-only variant
+# gstack-design-review        # live UI audit + fix
+# gstack-devex-review         # live developer experience audit
+# gstack-browse               # raw browser primitive
+# gstack-open-gstack-browser  # launch GStack Browser window
+# gstack-connect-chrome       # connect to existing Chrome
+# gstack-setup-browser-cookies
+# gstack-pair-agent           # share browser with remote agent
+#
+# Design system:
+# gstack-design-consultation
+# gstack-design-shotgun
+# gstack-design-html
+#
+# Security:
+# gstack-cso                  # CSO mode — OWASP/STRIDE
+#
+# Safety guards:
+# gstack-careful              # warn before destructive commands
+# gstack-freeze               # restrict edits to one dir
+# gstack-guard                # = careful + freeze
+# gstack-unfreeze
+#
+# Project state:
+# gstack-context-save
+# gstack-context-restore
+# gstack-retro                # weekly retrospective
+# gstack-health               # code quality dashboard
+# gstack-document-release     # post-ship doc updates
+# gstack-make-pdf             # any markdown → PDF
+# gstack-landing-report       # ship queue dashboard
+# gstack-setup-deploy
+# gstack-setup-gbrain         # gbrain MCP onboarding
+# gstack-codex                # OpenAI Codex CLI wrapper

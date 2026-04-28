@@ -11,7 +11,10 @@ command -v bun >/dev/null 2>&1 || echo "warn: bun not found — gstack setup may
 echo "==> 1. Install / update gstack"
 mkdir -p ~/.claude/skills
 if [ -d ~/.claude/skills/gstack/.git ]; then
-  (cd ~/.claude/skills/gstack && git pull --ff-only)
+  # Use fetch + reset --hard so previous prunes (e.g. deleted bare SKILL.md)
+  # don't block the update. ~/.claude/skills/gstack is a vendor checkout, not
+  # a working tree we edit by hand.
+  (cd ~/.claude/skills/gstack && git fetch --depth 1 origin main && git reset --hard origin/main)
 else
   git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
 fi
@@ -63,11 +66,13 @@ if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]
   done
 fi
 
-echo "==> 6. Prune gstack-* skill wrappers to keep-list"
+echo "==> 6. Prune gstack registrations to keep-list"
 KEEP_FILE="$REPO_DIR/gstack-keep.txt"
 if [ -f "$KEEP_FILE" ]; then
-  KEEP_PATTERN=$(grep -vE '^\s*(#|$)' "$KEEP_FILE" | paste -sd '|' -)
-  if [ -n "$KEEP_PATTERN" ]; then
+  KEEP_LINES=$(grep -vE '^\s*(#|$)' "$KEEP_FILE" || true)
+  if [ -n "$KEEP_LINES" ]; then
+    KEEP_PATTERN=$(echo "$KEEP_LINES" | paste -sd '|' -)
+    # 6a. Prune gstack-* wrappers
     pruned=0; kept=0
     for d in "$HOME/.claude/skills"/gstack-*; do
       [ -d "$d" ] || continue
@@ -79,13 +84,28 @@ if [ -f "$KEEP_FILE" ]; then
         pruned=$((pruned + 1))
       fi
     done
-    echo "    pruned $pruned, kept $kept (gstack source intact at ~/.claude/skills/gstack/)"
+    echo "    wrappers: pruned $pruned, kept $kept"
+    # 6b. Bare gstack skill (~/.claude/skills/gstack/SKILL.md is the browse skill)
+    BARE_SKILL="$HOME/.claude/skills/gstack/SKILL.md"
+    if echo "gstack" | grep -qE "^($KEEP_PATTERN)$"; then
+      [ -f "$BARE_SKILL" ] && echo "    bare gstack skill: kept (in keep-list)"
+    else
+      if [ -f "$BARE_SKILL" ]; then
+        rm -f "$BARE_SKILL"
+        echo "    bare gstack skill: removed (browse skill unregistered)"
+      fi
+    fi
+    # 6c. Defensive: ensure gstack didn't write SessionStart hooks into settings.json
+    if [ -f "$HOME/.claude/settings.json" ] && grep -q "gstack" "$HOME/.claude/settings.json" 2>/dev/null; then
+      echo "    WARN: ~/.claude/settings.json contains gstack reference — review with: grep gstack ~/.claude/settings.json"
+    fi
   else
-    echo "    keep-list empty — keeping all gstack wrappers"
+    echo "    keep-list empty — keeping all gstack wrappers and bare skill"
   fi
 else
-  echo "    no gstack-keep.txt — keeping all gstack wrappers"
+  echo "    no gstack-keep.txt — keeping all gstack wrappers and bare skill"
 fi
+echo "    (gstack source intact at ~/.claude/skills/gstack/)"
 
 echo "==> 7. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
 TARGET="$HOME/.claude/CLAUDE.md"
@@ -94,24 +114,22 @@ MARK_START="<!-- turbo:claude-additions:start -->"
 MARK_END="<!-- turbo:claude-additions:end -->"
 mkdir -p "$HOME/.claude"
 touch "$TARGET"
-# Demote ## headings to # and skip the file's own preamble (everything before first ## )
-BLOCK=$(awk '/^## /{flag=1} flag{sub(/^## /,"# "); print}' "$SRC")
+# Strip any existing block first (delete lines between markers, inclusive)
 if grep -qF "$MARK_START" "$TARGET"; then
-  awk -v s="$MARK_START" -v e="$MARK_END" -v b="$BLOCK" '
-    $0 == s { print; print b; in_block=1; next }
-    $0 == e { in_block=0 }
-    !in_block { print }
+  awk -v s="$MARK_START" -v e="$MARK_END" '
+    $0 == s { skip=1; next }
+    $0 == e && skip { skip=0; next }
+    !skip { print }
   ' "$TARGET" > "$TARGET.tmp" && mv "$TARGET.tmp" "$TARGET"
-  echo "    refreshed turbo block in $TARGET"
-else
-  {
-    echo ""
-    echo "$MARK_START"
-    echo "$BLOCK"
-    echo "$MARK_END"
-  } >> "$TARGET"
-  echo "    appended turbo block to $TARGET"
 fi
+# Append fresh block. awk demotes ## → # and skips the file's preamble.
+{
+  echo ""
+  echo "$MARK_START"
+  awk '/^## /{flag=1} flag{sub(/^## /,"# "); print}' "$SRC"
+  echo "$MARK_END"
+} >> "$TARGET"
+echo "    wrote turbo block to $TARGET"
 
 echo
 echo "Done."
