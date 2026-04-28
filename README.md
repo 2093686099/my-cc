@@ -250,8 +250,8 @@ brew install git jq gh && npm i -g @openai/codex && gh auth login
 | 临时小改、不写 plan | `/implement` |
 | **想吃透关键逻辑（并发 / 锁 / 状态机 / 性能敏感路径），不让 AI 直接糊代码** | `/old-code`（Build 阶段慢档，本仓库自定义 skill） |
 | 收尾 4-phase（polish → changelog → self-improve → split analysis → /ship 或 /split-and-ship） | `/finalize`（自动跟在 `/implement*` 后面，手写代码后也可以单独叫） |
-| 单独 ship（仅 commit + push + PR，跳过 polish） | `/ship` |
-| 拆分 ship（多个 reviewable unit，分多个 commit/branch/PR） | `/split-and-ship` |
+| **独立** ship 单 PR（手写代码后跳过 polish 直接收尾；不要接在 `/finalize` 后面，会重复） | `/ship` |
+| **独立** ship 拆分（多个 reviewable unit，分多个 commit/branch/PR；同上，独立调用） | `/split-and-ship` |
 | 排查 bug | `/investigate` |
 | 代码 / PR 审查 | `/review-code`、`/review-pr`、`/peer-review` |
 | PR 评论循环 | `/fetch-pr-comments`、`/reply-to-pr-conversation`、`/resolve-pr-comments` |
