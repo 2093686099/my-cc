@@ -55,12 +55,13 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | clone turbo 仓库 | `~/.turbo/repo/` |
 | 把 turbo 每个 skill 平铺到 claude skills 目录 | `~/.claude/skills/<skill>/` |
 | 把本仓库 `skills/` 下的自定义 skill 同步过去 | `~/.claude/skills/<skill>/` |
-| **按 `gstack-keep.txt` 砍掉用不到的 gstack 包装目录**（默认从 42 → 9） | 删 `~/.claude/skills/gstack-*/` 不在 keep 列表里的 |
+| **按 `gstack-keep.txt` 砍掉用不到的 gstack 注册项**（默认从 43 → 9） | 删 `~/.claude/skills/gstack-*/` 不在 keep 列表里的 + 删 `~/.claude/skills/gstack/SKILL.md`（除非 `gstack` 在 keep 里） |
+| **防御检查**：扫 `~/.claude/settings.json` 是否被 gstack 写入了 SessionStart hook | 仅 WARN，不擅自改 |
 | **追加 turbo 的 `CLAUDE-ADDITIONS.md` 到 `~/.claude/CLAUDE.md`**（带 marker，幂等） | `~/.claude/CLAUDE.md` |
 
 **为什么追加 CLAUDE-ADDITIONS：** turbo 的 README 里讲得很死——没装这套 5 条规则，Claude 在嵌套流水线（`/finalize` 之类）里**会静默跳步**。代价 ~250 tokens/会话，换流水线可靠性，值。
 
-**为什么砍 gstack 包装目录：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表。42 个 ≈ 12k 字符 ≈ 3.5k tokens 常驻。砍到 9 个省 ~2.7k tokens。要加回来：编辑 `gstack-keep.txt`，重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动。
+**为什么砍 gstack 注册项：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表；另外 `~/.claude/skills/gstack/SKILL.md`（gstack 源目录顶层那个 bare 文件）会再注册一个 `/gstack` 浏览器 skill。42 wrapper + 1 bare = 43 个 ≈ 13k 字符 ≈ 3.5k tokens 常驻。砍到 9 个省 ~2.7k tokens。要加回某个：编辑 `gstack-keep.txt`（里面已经把全部可选项注释列出来了，按类别分组：build / QA / design / security / safety guards / state），取消注释对应行 + 重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动，gstack 本身仍可正常工作。
 
 `turbo.config.json` 当前是 `excludeSkills: []`——turbo 全装，没排除。
 
@@ -197,7 +198,7 @@ You: /gstack-autoplan
 
 - `skill_prefix=true`：所有保留的 gstack skill 都带 `gstack-` 前缀
 - `proactive=false`：gstack skill 自身运行时不会主动建议其它 gstack skill
-- **prune wrapper**：删掉用不到的 gstack 包装目录，从 42 → 9，省 ~2.7k tokens 常驻
+- **prune 注册项**：删掉用不到的 gstack 包装目录 + bare `gstack/SKILL.md`，从 43 → 9，省 ~2.7k tokens 常驻
 
 turbo 这边仍然按它原有的方式自动路由（`/turboplan` `/implement-plan` `/finalize` 等都是裸命名）。
 
@@ -234,7 +235,7 @@ turbo 这边仍然按它原有的方式自动路由（`/turboplan` `/implement-p
 
 抠出来就要长期维护一套手术补丁，gstack 升级一次就重做一次。**不值。**
 
-**全装但精修的代价是按调用付的。** gstack 那几个大 SKILL.md（office-hours 在 26k tokens 量级）只在显式调用时进上下文，平时不烧。常驻成本是 frontmatter description——这一条之前我以为很小，实测 42 个 wrapper 一起算下来 ~3.5k tokens/会话，**不算很小**，所以 `install.sh` 里加了 `gstack-keep.txt` 砍 wrapper 这一步，砍到 9 个之后常驻 ~800 tokens，可以接受。
+**全装但精修的代价是按调用付的。** gstack 那几个大 SKILL.md（office-hours 在 26k tokens 量级）只在显式调用时进上下文，平时不烧。常驻成本是 frontmatter description——这一条之前我以为很小，实测 42 个 wrapper + 1 个 bare 一起算下来 ~3.5k tokens/会话，**不算很小**，所以 `install.sh` 里加了 `gstack-keep.txt` 砍注册项这一步，砍到 9 个之后常驻 ~800 tokens，可以接受。
 
 这个取舍不是普适的，但对我够用。
 
