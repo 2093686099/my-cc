@@ -115,6 +115,7 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | 场景 | 命令 |
 |---|---|
 | 临时小改、不写 plan | `/implement` |
+| **想吃透关键逻辑（并发 / 锁 / 状态机 / 性能敏感路径），不让 AI 直接糊代码** | `/old-code`（Build 阶段慢档，本仓库自定义 skill） |
 | 收尾 4-phase（polish → changelog → self-improve → commit+push+PR） | `/finalize`（自动跟在 `/implement*` 后面，手写代码后也可以单独叫） |
 | 单独 ship（仅 commit + push + PR，跳过 polish） | `/ship` |
 | 排查 bug | `/investigate` |
@@ -220,6 +221,63 @@ You: /gstack-autoplan
 
 ---
 
+## `/old-code`：Build 阶段的慢档（古法编程）
+
+`/gstack-*` 增强的是 **Plan 阶段的思辨深度**。`/old-code` 增强的是另一头——**Build 阶段的吃透深度**。它是这个仓库自己写的 skill（在 `skills/old-code/`），不来自 turbo 也不来自 gstack。
+
+**它解决什么问题。** 在 AI 辅助开发里，最隐蔽的退化是"代码经过了屏幕，却没经过大脑"——AI 生成的代码看起来对、能跑，但开发者说不出每一行在内存/CPU/运行时里到底怎么动。日子久了，对代码坏味道的嗅觉会变钝，遇到 AI 语料稀少的领域（嵌入式驱动、锁机制、内存管理）就抓瞎。`/old-code` 把"理解每一行"做成 Build 阶段的硬约束。
+
+**两种模式（互斥，选一个）：**
+
+| 模式 | 默认 | 时机 | 谁打字 | 适合 |
+|---|---|---|---|---|
+| **原理反问 (Principle Questioning)** | ✓ | 代码生成**之后** | AI 写 + 用户解释 | 你已经会写但想检查理解 |
+| **代码临摹 (Code Calligraphy)** | — | 代码生成**之前** | 用户**逐行**手动输入 | 学新技术 / 训练肌肉记忆 |
+
+反问模式：AI 生成一段代码 → **不直接落盘** → 反问"解释这段的原理和底层实现细节" → 解释清晰 → 落盘；解释不通则继续反问；累计 3 次还不通则给答案 + 鼓励。
+
+临摹模式：AI 逐行展示代码 + 每行注释（作用 + 底层原理）→ **用户敲完一行才允许看下一行** → AI 校验大致正确性（语义等价即可，不抠字符）→ 整段完成后落盘。
+
+**接入位置（不替代 plan / 不替代 ship）：**
+
+```text
+[Plan 阶段，照常]
+  /turboplan <任务>           → .turbo/plans/<slug>.md
+  (可选 /gstack-office-hours / /gstack-autoplan 加固)
+
+[Build 阶段，二选一]
+  快档：  /implement-plan  → /implement → /finalize       (默认 AI 主导)
+  慢档：  /old-code        → 反问 / 临摹 → /finalize     (人和 AI 协作)
+
+[Ship 阶段，照常]
+  /finalize：polish → changelog → self-improve → commit + push + PR
+```
+
+`/old-code` 替换的是中间这一段，**前后接口完全保留**：
+
+- 上游：可以读 `.turbo/plans/<slug>.md`（按 turbo `/implement-plan` 同款 resolve 规则），也可以接受用户内联描述
+- 下游：代码落盘后调 `/finalize`，commit / 测试 / PR 全部走 turbo 原有流程
+- Skill 装载：进入 Step 2 时仍调 `/code-style` 装项目风格规则——慢不等于野
+
+**什么时候用：**
+
+| 场景 | 命令 |
+|---|---|
+| 普通业务 / 样板 / glue / 配置 | `/implement-plan`（默认快档） |
+| 关键 / 易错 / 想吃透的逻辑（LRU 缓存 / 锁 / 状态机 / 内存敏感路径） | `/old-code`（慢档） |
+| 学新框架想训练手感 | `/old-code` 临摹模式 |
+| AI 给的代码看着对但你不放心 | `/old-code` 反问模式（让 AI 反过来盘问你） |
+
+**重要约束：**
+
+- **永不自动触发**。skill description 写明 "Do NOT auto-invoke"，只在你**明示**说"用古法"或敲 `/old-code` 时入场——避免它在普通编码时自动改变工作流。
+- **不替代 plan**。没 plan 也没清晰描述就调用 → halt。古法不是让 AI 边想边写得更慢，是让人在已经决定要写什么之后，更深入地参与"怎么写"。
+- **不修改 plan 文件**。只读。
+
+致谢：核心理念来自 [zjw-swun/old-code](https://github.com/zjw-swun/old-code)（MIT），本仓库的版本在原作基础上接上了 turbo / gstack 的工作流接口（plan 文件 resolve、`/code-style` 装载、`/finalize` 收尾）。
+
+---
+
 ## 冲突怎么处理
 
 经过 `skill_prefix=true` + keep-list 控注册之后，**已经没有撞名了**——gstack 那边的 `/investigate` `/ship` `/review` 等同名 skill 都不在列表里，只剩 8 个 `/gstack-*` 前缀的规划/学习类 skill。
@@ -287,6 +345,8 @@ my-claude-setup/
 - 反复用的私人快捷动作
 - 对 turbo / gstack skill 的薄包装（比如带固定参数的）
 - 自己写的实验性 skill
+
+**当前真实例子**：`skills/old-code/`（古法编程，见上文专节）。它是个"对 turbo Build 阶段的可选替换"，挂在 `/implement-plan` 和 `/finalize` 之间——这就是这一层 `skills/` 该干的事：在 turbo / gstack 的接缝处加自己的料，但不改它们本身。
 
 什么样的东西**不适合**放进来：
 - 改 turbo 自己的 skill 行为 → 该走 `/contribute-turbo` 提 PR 给上游
