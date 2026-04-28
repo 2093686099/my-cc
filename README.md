@@ -90,6 +90,98 @@ Claude: [resolve 到 .turbo/plans/<slug>.md，读 Context Files 全文]
 
 ---
 
+## 复杂任务的完整流程：gstack 加固 + 可选慢档
+
+上面那个加缓存层是 **Plan mode 标准流程**（纯 turbo）。如果任务大、不确定要不要做、想加四角色 review、或者关键代码想吃透——下面这条加固版的链路才是你要走的。
+
+### 流程顺序（这里有个常见的坑）
+
+`/gstack-autoplan` **不是从零生成 plan 的工具**，是 plan 文件**评审**工具——它要求 `.turbo/plans/<slug>.md` 已经存在。所以 office-hours 和 autoplan **不连**着调，中间必须有 `/turboplan` 把 plan 起出来：
+
+```text
+[Session 1：想清楚 + 出 plan + 加固 plan]
+
+You: /gstack-office-hours <模糊想法>
+       ↓
+       6 个 forcing question 拷问你（要不要做？最窄楔子？观察根据？）
+       产出：~/.gstack/projects/<slug>/*-design-*.md（gstack 格式的设计文档）
+       ⚠️ 这是设计文档，不是 turbo 的 plan 文件——下一步还要走 /turboplan
+
+You: /turboplan <用上一步澄清出来的清晰描述>
+       ↓
+       内部按复杂度路由 → 进 Plan mode（或 Spec mode 如果跨多子系统）
+       跑 /draft-plan → /refine-plan → /self-improve → mark ready (status: ready)
+       ★ halt ★
+       产出：.turbo/plans/<slug>.md（这才是 turbo plan 文件）
+
+You: /gstack-autoplan
+       ↓
+       读上一步的 plan 文件
+       并行跑 CEO + 设计 + 工程 + DX 四角色 review
+       按 6 大决策原则**改写回 plan 文件**（自动备份 restore point）
+       产出：被加固过的 .turbo/plans/<slug>.md
+       ⚠️ 改写后建议肉眼快速过一遍，autoplan 偶尔会引入 gstack 风格段落
+
+You: /clear   ← Claude Code 内建命令，清空当前会话上下文
+
+[Session 2：实施 + 收尾]
+
+You: /implement-plan
+       ↓
+       resolve plan 文件 → 完整读 Context Files
+       按 plan 内容自动加载相关 skill
+       /implement → 内部加载 /code-style → 写代码
+       自动链 /finalize
+
+[/finalize 4-phase 自动跑]
+       Phase 1 /polish-code 循环：
+                stage → fmt → lint → test → /review-code（含 codex peer review）
+                → /evaluate-findings → /apply-findings → /smoke-test → 直到稳定
+       Phase 2 /update-changelog（CHANGELOG.md 不存在则跳过）
+       Phase 3 /self-improve（抽出本 session 学到的东西）
+       Phase 4 split analysis：
+                按 reviewability 评估是否拆 PR
+                → AskUserQuestion 让你选：单 PR 走 /ship，拆分走 /split-and-ship
+       ✓ Tests pass ✓ Committed ✓ Pushed ✓ PR #42 created
+```
+
+### 每一步具体贡献什么
+
+| 步骤 | 干什么 | 什么时候**省略** |
+|---|---|---|
+| `/gstack-office-hours` | 6 个 forcing question 拷问"值不值得做、做成什么样" | 你已经想清楚了，直接跳到 `/turboplan` |
+| `/turboplan` | 路由 + 出 plan 文件（必经） | 永远不省略——所有任务都从这里进 |
+| `/gstack-autoplan` | 四角色 review 加固 plan | 中小任务、不需要被挑战——纯 turbo 就够 |
+| `/clear` | 给实施期一个 fresh session | 技术上不照做也不会报错，但 turbo halt 文案就是按 fresh session 写的，照做 |
+| `/implement-plan` | 读 plan + 自动加载相关 skill + 写代码 + 链 /finalize | 不省略——Plan mode 的实施入口 |
+| `/finalize` | 4-phase QA + ship | 不省略——commit / 测试 / PR 全部在这里 |
+
+### 关键挂钩点 / 常见疑问
+
+**TDD 怎么走？** turbo 默认不是 TDD（test 在 polish 循环里当 quality gate 用，不是 driver）。要 TDD 节奏，三种挂法（任选其一）：
+
+1. **在 `/turboplan` 任务描述里明示**："使用 TDD：先写失败测试 → 实现 → 重构"。turbo 会顺着写进 plan 的 Implementation Steps，`/implement-plan` 会照着走。
+2. **改 plan 文件 Verification 节**：手动改写 plan 文件，把 Implementation Steps 排成 test-first 节奏（注意要在 `/gstack-autoplan` **之后** halt **之前**改，否则会被 autoplan 改写覆盖）。
+3. **走慢档 `/old-code`**：把 `/implement-plan` 换成 `/old-code`——它默认会按内容路由判断要不要 TDD（算法 / 锁 / 状态机默认 on，UI / 配置默认 off），用户可以"用 TDD" / "跳过 TDD"显式覆盖。详见 [`/old-code`](#old-code-build-阶段的慢档古法编程)。
+
+**`/finalize` 之后还要 `/review-code` 吗？** **不用**。`/finalize` Phase 1 内部已经叫 `/review-code`（而 `/review-code` 又内部并行跑 internal review + `/peer-review`/codex），三层嵌套。例外：单角度精细 scan（`/review-code security`）或手动改完代码不想跑完整 `/finalize` 时单独跑。
+
+**用 `/old-code` 替换 `/implement-plan` 是什么样？** 流程图改成：
+
+```text
+You: /clear
+You: /old-code   ← 替代 /implement-plan，不替代前后任何步骤
+       resolve plan 文件
+       /code-style 加载（仍然装风格规则）
+       Pick mode（反问 默认 / 临摹 显式）+ TDD rhythm（按内容路由）
+       逐段反问 / 临摹直到落盘
+       自动链 /finalize（commit / 测试 / PR 仍走 turbo 主流程）
+```
+
+**Spec mode 长什么样？** Plan mode halt 之后是 `/implement-plan`，Spec mode halt 之后是先 `/pick-next-shell` 把每个 shell 拉出来 expand → refine → halt，**每个 shell 各起一个 fresh session 跑 `/implement-plan`**——见下方 [turbo 的核心执行流程](#turbo-的核心执行流程) 表格。
+
+---
+
 ## turbo 的核心执行流程
 
 `/turboplan` 是唯一规划入口，按任务复杂度自动选三种模式（**borderline 时会用 `AskUserQuestion` 让你确认走哪条**）：
