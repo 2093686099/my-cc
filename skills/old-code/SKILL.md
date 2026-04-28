@@ -1,6 +1,6 @@
 ---
 name: old-code
-description: "Use ONLY when the user explicitly asks for old-code / 古法编程 / 原理反问 / 代码临摹 mode, or types /old-code. Slow-path Build mode that replaces normal AI code-drop: forces line-by-line principle questioning (default) or human transcription before code lands. Reads an existing plan file when present, hands off to /finalize when done. Do NOT auto-invoke."
+description: "Use ONLY when the user explicitly asks for 古法编程 mode. Slow-path Build mode that replaces normal AI code-drop: forces line-by-line principle questioning (default) or human transcription before code lands. Reads an existing plan file when present, hands off to /finalize when done. Do NOT auto-invoke."
 ---
 
 # 古法编程（Old Code Mode）
