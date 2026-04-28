@@ -72,22 +72,7 @@ for skill_dir in ~/.turbo/repo/skills/*/; do
   cp -r "$skill_dir" "$HOME/.claude/skills/$skill"
 done
 
-echo "==> 5. Ensure agent-browser is installed (turbo's preferred browser skill)"
-# turbo's smoke-test / exploratory-test / design-review prefer agent-browser over
-# the claude-in-chrome MCP fallback. Idempotent: skip if already on disk.
-if [ -d "$HOME/.claude/skills/agent-browser" ]; then
-  echo "    agent-browser already present"
-else
-  if command -v npx >/dev/null 2>&1; then
-    npx -y skills add https://github.com/vercel-labs/agent-browser \
-      --skill agent-browser --agent claude-code -y -g 2>&1 | tail -5 \
-      || echo "    WARN: agent-browser install failed — install manually if you want browser skills"
-  else
-    echo "    WARN: npx not found — skip agent-browser. Install Node.js, then re-run."
-  fi
-fi
-
-echo "==> 6. Add .turbo/ to global gitignore"
+echo "==> 5. Add .turbo/ to global gitignore"
 # turbo skills write plans/specs/improvements into each repo's .turbo/ dir.
 # Without ignoring, every project surfaces them as untracked changes.
 GIT_IGNORE_FILE="$HOME/.config/git/ignore"
@@ -104,7 +89,7 @@ else
   echo "    added .turbo/ to $GIT_IGNORE_FILE"
 fi
 
-echo "==> 7. Install custom skills from this repo (if any)"
+echo "==> 6. Install custom skills from this repo (if any)"
 if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]; then
   for skill_dir in "$REPO_DIR/skills"/*/; do
     [ -d "$skill_dir" ] || continue
@@ -115,7 +100,7 @@ if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]
   done
 fi
 
-echo "==> 8. Prune gstack registrations to keep-list"
+echo "==> 7. Prune gstack registrations to keep-list"
 KEEP_FILE="$REPO_DIR/gstack-keep.txt"
 if [ -f "$KEEP_FILE" ]; then
   KEEP_LINES=$(grep -vE '^\s*(#|$)' "$KEEP_FILE" || true)
@@ -156,7 +141,7 @@ else
 fi
 echo "    (gstack source intact at ~/.claude/skills/gstack/)"
 
-echo "==> 9. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
+echo "==> 8. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
 TARGET="$HOME/.claude/CLAUDE.md"
 SRC="$HOME/.turbo/repo/CLAUDE-ADDITIONS.md"
 MARK_START="<!-- turbo:claude-additions:start -->"

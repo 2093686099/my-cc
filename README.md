@@ -60,7 +60,7 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 
 **可选**：
 
-- `agent-browser`（turbo 浏览器 skill 首选）— **install.sh 已经替你装了**（步骤 5，幂等），所以默认有。要的是 npx 能跑（Node.js 装好就行）；卸载 = `rm -rf ~/.claude/skills/agent-browser` 并把 install.sh 的步骤 5 注掉
+- `agent-browser`（turbo 浏览器 skill 首选）— 没装会自动 fallback 到 `claude-in-chrome` MCP。一句安装：`npx skills add https://github.com/vercel-labs/agent-browser --skill agent-browser --agent claude-code -y -g`
 - ChatGPT Pro + Chrome（turbo `/consult-oracle` 用，会诊通道）— 不会诊就略
 - statusLine（context 剩余进度条）— 这个仓库默认假设你已经装了 [claude-hud](https://github.com/claude-hud/claude-hud) 插件作为 statusline，turbo 自带的简单 statusLine 不再注入。没装 claude-hud 也行，turbo 流水线本身不依赖它
 
@@ -77,7 +77,6 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | clone turbo 仓库 | `~/.turbo/repo/` |
 | 维护 turbo 配置：写 `lastUpdateHead`、按 `MIGRATION.md` 写 `configVersion`、clone 模式自动把 `contribute-turbo` 加进 `excludeSkills` | `~/.turbo/config.json` |
 | 把 turbo 每个 skill 平铺到 claude skills 目录（已排除项跳过） | `~/.claude/skills/<skill>/` |
-| **装 agent-browser**（turbo 浏览器 skill 首选，幂等：已装则跳过） | `~/.claude/skills/agent-browser/`（npx 安装到 `~/.agents/` 然后 copy 过来） |
 | **把 `.turbo/` 加进全局 gitignore**（turbo 在每个项目根写 plans / specs / improvements，不忽略每个 repo 都会冒一堆 untracked） | `~/.config/git/ignore`（或 `git config --global core.excludesfile` 指定的文件） |
 | 把本仓库 `skills/` 下的自定义 skill 同步过去 | `~/.claude/skills/<skill>/` |
 | **按 `gstack-keep.txt` 砍掉用不到的 gstack 注册项**（默认从 43 → 9） | 删 `~/.claude/skills/gstack-*/` 不在 keep 列表里的 + 删 `~/.claude/skills/gstack/SKILL.md`（除非 `gstack` 在 keep 里） |
