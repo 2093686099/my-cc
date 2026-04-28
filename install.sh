@@ -40,6 +40,27 @@ if [ ! -f ~/.turbo/config.json ]; then
 fi
 
 echo "==> 4. Sync turbo skills into ~/.claude/skills (honoring excludeSkills)"
+
+# Refresh ~/.turbo/config.json: lastUpdateHead + configVersion (latest from MIGRATION.md).
+# Clone mode also auto-adds contribute-turbo to excludeSkills since it requires
+# fork/source access. Idempotent across re-runs.
+HEAD_SHA=$(git -C ~/.turbo/repo rev-parse HEAD)
+CONFIG_VERSION=$(grep -oE '^## Version [0-9]+' ~/.turbo/repo/MIGRATION.md | grep -oE '[0-9]+' | sort -n | tail -1)
+REPO_MODE=$(jq -r '.repoMode // "clone"' ~/.turbo/config.json)
+tmp=$(mktemp)
+if [ "$REPO_MODE" = "clone" ]; then
+  jq --arg sha "$HEAD_SHA" --argjson ver "${CONFIG_VERSION:-2}" '
+    .lastUpdateHead = $sha
+    | .configVersion = $ver
+    | .excludeSkills = ((.excludeSkills // []) + ["contribute-turbo"] | unique)
+  ' ~/.turbo/config.json > "$tmp" && mv "$tmp" ~/.turbo/config.json
+else
+  jq --arg sha "$HEAD_SHA" --argjson ver "${CONFIG_VERSION:-2}" '
+    .lastUpdateHead = $sha
+    | .configVersion = $ver
+  ' ~/.turbo/config.json > "$tmp" && mv "$tmp" ~/.turbo/config.json
+fi
+
 EXCLUDED=$(jq -r '.excludeSkills[]?' ~/.turbo/config.json 2>/dev/null | paste -sd '|' -)
 for skill_dir in ~/.turbo/repo/skills/*/; do
   skill=$(basename "$skill_dir")
@@ -51,11 +72,24 @@ for skill_dir in ~/.turbo/repo/skills/*/; do
   cp -r "$skill_dir" "$HOME/.claude/skills/$skill"
 done
 
-HEAD_SHA=$(git -C ~/.turbo/repo rev-parse HEAD)
-tmp=$(mktemp)
-jq --arg sha "$HEAD_SHA" '.lastUpdateHead = $sha' ~/.turbo/config.json > "$tmp" && mv "$tmp" ~/.turbo/config.json
+echo "==> 5. Add .turbo/ to global gitignore"
+# turbo skills write plans/specs/improvements into each repo's .turbo/ dir.
+# Without ignoring, every project surfaces them as untracked changes.
+GIT_IGNORE_FILE="$HOME/.config/git/ignore"
+GIT_CUSTOM=$(git config --global core.excludesfile 2>/dev/null || true)
+if [ -n "$GIT_CUSTOM" ]; then
+  GIT_IGNORE_FILE="${GIT_CUSTOM/#\~/$HOME}"
+fi
+mkdir -p "$(dirname "$GIT_IGNORE_FILE")"
+touch "$GIT_IGNORE_FILE"
+if grep -qxE '\.turbo/?' "$GIT_IGNORE_FILE"; then
+  echo "    .turbo/ already in $GIT_IGNORE_FILE"
+else
+  echo '.turbo/' >> "$GIT_IGNORE_FILE"
+  echo "    added .turbo/ to $GIT_IGNORE_FILE"
+fi
 
-echo "==> 5. Install custom skills from this repo (if any)"
+echo "==> 6. Install custom skills from this repo (if any)"
 if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]; then
   for skill_dir in "$REPO_DIR/skills"/*/; do
     [ -d "$skill_dir" ] || continue
@@ -66,7 +100,7 @@ if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]
   done
 fi
 
-echo "==> 6. Prune gstack registrations to keep-list"
+echo "==> 7. Prune gstack registrations to keep-list"
 KEEP_FILE="$REPO_DIR/gstack-keep.txt"
 if [ -f "$KEEP_FILE" ]; then
   KEEP_LINES=$(grep -vE '^\s*(#|$)' "$KEEP_FILE" || true)
@@ -107,7 +141,7 @@ else
 fi
 echo "    (gstack source intact at ~/.claude/skills/gstack/)"
 
-echo "==> 7. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
+echo "==> 8. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
 TARGET="$HOME/.claude/CLAUDE.md"
 SRC="$HOME/.turbo/repo/CLAUDE-ADDITIONS.md"
 MARK_START="<!-- turbo:claude-additions:start -->"

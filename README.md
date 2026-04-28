@@ -53,7 +53,9 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | clone gstack 完整安装，跑它自带的 `./setup` | `~/.claude/skills/gstack/` |
 | 给 gstack 写配置：`skill_prefix=true` `proactive=false` `explain_level=terse` `telemetry=off` | gstack 自带 config |
 | clone turbo 仓库 | `~/.turbo/repo/` |
-| 把 turbo 每个 skill 平铺到 claude skills 目录 | `~/.claude/skills/<skill>/` |
+| 维护 turbo 配置：写 `lastUpdateHead`、按 `MIGRATION.md` 写 `configVersion`、clone 模式自动把 `contribute-turbo` 加进 `excludeSkills` | `~/.turbo/config.json` |
+| 把 turbo 每个 skill 平铺到 claude skills 目录（已排除项跳过） | `~/.claude/skills/<skill>/` |
+| **把 `.turbo/` 加进全局 gitignore**（turbo 在每个项目根写 plans / specs / improvements，不忽略每个 repo 都会冒一堆 untracked） | `~/.config/git/ignore`（或 `git config --global core.excludesfile` 指定的文件） |
 | 把本仓库 `skills/` 下的自定义 skill 同步过去 | `~/.claude/skills/<skill>/` |
 | **按 `gstack-keep.txt` 砍掉用不到的 gstack 注册项**（默认从 43 → 9） | 删 `~/.claude/skills/gstack-*/` 不在 keep 列表里的 + 删 `~/.claude/skills/gstack/SKILL.md`（除非 `gstack` 在 keep 里） |
 | **防御检查**：扫 `~/.claude/settings.json` 是否被 gstack 写入了 SessionStart hook | 仅 WARN，不擅自改 |
@@ -63,7 +65,7 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 
 **为什么砍 gstack 注册项：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表；另外 `~/.claude/skills/gstack/SKILL.md`（gstack 源目录顶层那个 bare 文件）会再注册一个 `/gstack` 浏览器 skill。42 wrapper + 1 bare = 43 个 ≈ 13k 字符 ≈ 3.5k tokens 常驻。砍到 9 个省 ~2.7k tokens。要加回某个：编辑 `gstack-keep.txt`（里面已经把全部可选项注释列出来了，按类别分组：build / QA / design / security / safety guards / state），取消注释对应行 + 重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动，gstack 本身仍可正常工作。
 
-`turbo.config.json` 当前是 `excludeSkills: []`——turbo 全装，没排除。
+`turbo.config.json` 现在 `excludeSkills` 只有 `contribute-turbo`（clone 模式自动加，没 fork 跑这个会失败）；同时 `configVersion`、`lastUpdateHead` 由 `install.sh` 每次重跑时刷新，跟上游 turbo 的版本协调。其它 turbo skill 全装。
 
 ---
 

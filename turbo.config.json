@@ -1,4 +1,5 @@
 {
   "repoMode": "clone",
-  "excludeSkills": []
+  "excludeSkills": ["contribute-turbo"],
+  "configVersion": 2
 }
