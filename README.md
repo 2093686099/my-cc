@@ -28,7 +28,7 @@ git clone <this-repo> && cd my-claude-setup
 ./install.sh
 ```
 
-前置依赖见下面的[前置依赖](#前置依赖)章节，至少需要 `git` `jq` `bun` `gh` `codex`。gstack 第一次跑 `./setup` 会下载 ~250MB chromium for testing（playwright），等一下。
+前置依赖见下面的[前置依赖](#前置依赖)章节，至少需要 `git` `jq` `gh` `codex`。`install.sh` **不**再调用 gstack 的 `./setup`，所以 Playwright Chromium / browse 二进制 / `bun install` 都不会触发——keep-list 里只有规划/思考类 skill，用不到那些。
 
 **用（最小三步走，turbo 主路径）：**
 
@@ -53,10 +53,10 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 | 工具 | 用途 | install.sh 行为 | 装法 |
 |---|---|---|---|
 | `git` / `jq` | clone、改 JSON | 缺则退出 | `brew install git jq` |
-| `bun` | gstack 自带 `./setup` 用它编译 browser daemon | 缺则警告并继续，gstack ./setup 会失败 | `curl -fsSL https://bun.sh/install \| bash` |
 | **`gh` CLI** | turbo 的 `/review-pr` / `/fetch-pr-comments` / `/create-pr` / `/resolve-pr-comments` 等都走 `gh` | **不检查**，调用 skill 时才报错 | `brew install gh && gh auth login` |
 | **`codex` CLI** | turbo `/finalize` Phase 3 (peer-review) 和裸 `/peer-review` 必备；turbo 把它当强依赖 | **不检查** | `npm install -g @openai/codex` |
 | Claude Code | 这一切的运行环境 | — | 见 [docs.anthropic.com](https://docs.anthropic.com/en/docs/claude-code) |
+| ~~`bun`~~ | 老版本要求；现在 `install.sh` 不调 gstack `./setup` 了，bun 不再是 install 的依赖。如果你以后跑 `/gstack-upgrade` 让 gstack 自己更新，那一边仍然需要 bun | — | `curl -fsSL https://bun.sh/install \| bash`（仅当你打算用 `/gstack-upgrade`） |
 
 **可选**：
 
@@ -72,20 +72,25 @@ Session 2:  /implement-plan        # 在新 session 里读 plan、跑 /implement
 
 | 动作 | 落点 |
 |---|---|
-| clone gstack 完整安装，跑它自带的 `./setup` | `~/.claude/skills/gstack/` |
-| 给 gstack 写配置：`skill_prefix=true` `proactive=false` `explain_level=terse` `telemetry=off` | gstack 自带 config |
+| clone gstack 源码，**跳过 `./setup`** | `~/.claude/skills/gstack/`（git clone, no build, no node_modules, no Playwright） |
+| `mkdir -p ~/.gstack/projects`（gstack 运行时状态目录，`./setup` 原本会建） | `~/.gstack/projects/` |
+| 给 gstack 写配置：`skill_prefix=true` `proactive=false` `explain_level=terse` `telemetry=off`（用 `GSTACK_SETUP_RUNNING=1` 抑制 post-set relink hook） | gstack 自带 config |
 | clone turbo 仓库 | `~/.turbo/repo/` |
 | 维护 turbo 配置：写 `lastUpdateHead`、按 `MIGRATION.md` 写 `configVersion`、clone 模式自动把 `contribute-turbo` 加进 `excludeSkills` | `~/.turbo/config.json` |
 | 把 turbo 每个 skill 平铺到 claude skills 目录（已排除项跳过） | `~/.claude/skills/<skill>/` |
 | **把 `.turbo/` 加进全局 gitignore**（turbo 在每个项目根写 plans / specs / improvements，不忽略每个 repo 都会冒一堆 untracked） | `~/.config/git/ignore`（或 `git config --global core.excludesfile` 指定的文件） |
 | 把本仓库 `skills/` 下的自定义 skill 同步过去 | `~/.claude/skills/<skill>/` |
-| **按 `gstack-keep.txt` 砍掉用不到的 gstack 注册项**（默认从 43 → 9） | 删 `~/.claude/skills/gstack-*/` 不在 keep 列表里的 + 删 `~/.claude/skills/gstack/SKILL.md`（除非 `gstack` 在 keep 里） |
+| **按 `gstack-keep.txt` 给 keep-list 里的 gstack skill 建 symlink**（替代 `./setup` 的 `link_claude_skill_dirs`）：先调 `gstack-patch-names` 把 `name:` 字段加上 `gstack-` 前缀，再 sweep 旧 wrapper，再 `ln -s` 9 个 keep 项 | `~/.claude/skills/gstack-<name>/SKILL.md` → `gstack/<dir>/SKILL.md` |
 | **防御检查**：扫 `~/.claude/settings.json` 是否被 gstack 写入了 SessionStart hook | 仅 WARN，不擅自改 |
 | **追加 turbo 的 `CLAUDE-ADDITIONS.md` 到 `~/.claude/CLAUDE.md`**（带 marker，幂等） | `~/.claude/CLAUDE.md` |
 
 **为什么追加 CLAUDE-ADDITIONS：** turbo 的 README 里讲得很死——没装这套 5 条规则，Claude 在嵌套流水线（`/finalize` 之类）里**会静默跳步**。代价 ~250 tokens/会话，换流水线可靠性，值。
 
-**为什么砍 gstack 注册项：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表；另外 `~/.claude/skills/gstack/SKILL.md`（gstack 源目录顶层那个 bare 文件）会再注册一个 `/gstack` 浏览器 skill。42 wrapper + 1 bare = 43 个 ≈ 13k 字符 ≈ 3.5k tokens 常驻。砍到 9 个省 ~2.7k tokens。要加回某个：编辑 `gstack-keep.txt`（里面已经把全部可选项注释列出来了，按类别分组：build / QA / design / security / safety guards / state），取消注释对应行 + 重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动，gstack 本身仍可正常工作。
+**为什么不跑 gstack 自带的 `./setup`：** `./setup` 强制下载 ~500MB Playwright Chromium、构建 90MB browse 二进制、跑 `bun install`（700MB node_modules），全是为了 `/browse` `/qa` `/design-review` 这些浏览器系 skill 服务的——而 keep-list 里这些 skill 一个不留。gstack 没有 `--skip-browser` 之类的旗标可以绕过（只有 `--prefix` `--team` `--host` `GSTACK_SKIP_COREUTILS`），所以 `install.sh` 直接跳过 `./setup`，自己重写它必要的两步：先调 `gstack-patch-names`（gstack bin/ 里的纯 bash 工具）把源 SKILL.md 里 `name: office-hours` 改成 `name: gstack-office-hours`，再按 keep-list 给每个 kept skill 建 symlink。`bin/gstack-update-check`、`bin/gstack-config` 这些 keep 列表里的 skill 实际调用的运行时脚本，都是纯 bash，不依赖 node_modules / Playwright，所以这样跳过完全 OK。
+
+**`/gstack-upgrade` 警告：** 这个 skill 内部会 `cd ~/.claude/skills/gstack && ./setup`，**绕过我们的跳过逻辑**——意味着它会重新装 Playwright + 重建 node_modules + 重新生成所有 42 wrapper。要更新 gstack 请用 `./install.sh`（它做 `git fetch + reset --hard origin/main`，等价拉最新 + 不会触发那些副作用）。
+
+**为什么用 keep-list 控注册项：** Claude Code 把每个 `~/.claude/skills/gstack-foo/` 都当独立 skill 注册，frontmatter description 进每会话 skill 列表。42 wrapper + 1 bare = 43 个 ≈ 13k 字符 ≈ 3.5k tokens 常驻。只链 9 个之后常驻 ~800 tokens。要加回某个：编辑 `gstack-keep.txt`（里面已经把全部可选项注释列出来了，按类别分组：build / QA / design / security / safety guards / state），取消注释对应行 + 重跑 `./install.sh`。源码在 `~/.claude/skills/gstack/` 没动。
 
 `turbo.config.json` 现在 `excludeSkills` 只有 `contribute-turbo`（clone 模式自动加，没 fork 跑这个会失败）；同时 `configVersion`、`lastUpdateHead` 由 `install.sh` 每次重跑时刷新，跟上游 turbo 的版本协调。其它 turbo skill 全装。
 
@@ -230,12 +235,12 @@ turbo 这边仍然按它原有的方式自动路由（`/turboplan` `/implement-p
 
 ## 升级
 
-两种方式，等价：
+**用 `./install.sh`，不要用 `/gstack-upgrade`。**
 
-- 重跑 `./install.sh`：拉两边最新版并重新同步（幂等）
-- 在 Claude Code 里：`/gstack-upgrade`（gstack 那一边）+ `/update-turbo`（turbo 那一边）
+- ✅ `./install.sh`：`git fetch + reset --hard origin/main` 拉两边最新，按 keep-list 重链 symlink。幂等、零副作用、无 Playwright。
+- ❌ `/gstack-upgrade`：内部会 `cd ~/.claude/skills/gstack && ./setup`，绕过我们的跳过逻辑——会重新下 ~500MB Playwright Chromium、重建 node_modules、重新生成所有 42 wrapper。
 
-我个人偏好前者——一条命令，一致性强。
+如果只想升 turbo（不动 gstack），用 `/update-turbo` 也可以，那一边不踩 Playwright 雷。
 
 ---
 

@@ -1,9 +1,15 @@
-# gstack registrations to KEEP after install.
-# Each entry is a registered skill name. Anything not listed here gets removed:
-#   - ~/.claude/skills/gstack-<name>/  (wrappers from skill_prefix=true)
-#   - ~/.claude/skills/gstack/SKILL.md (the bare /gstack browse skill, if `gstack` is listed)
+# gstack skills to register after install.
+# Each entry is a skill name. install.sh creates ONE symlink per entry:
+#   ~/.claude/skills/<entry>/SKILL.md -> ~/.claude/skills/gstack/<dir>/SKILL.md
+# (where <dir> is `<entry>` with the leading `gstack-` stripped, falling back
+# to the literal entry name for already-prefixed dirs like `gstack-upgrade/`).
+#
+# This list is now the SOURCE OF TRUTH for what gets registered — install.sh
+# does NOT run gstack's `./setup` (which would create all 42 wrappers + install
+# Playwright). Skills not listed below are simply never linked. To re-enable
+# any commented-out skill: uncomment the line and re-run ./install.sh.
+#
 # Each kept skill costs ~300 chars (~75 tokens) of session context.
-# Re-runnable: install.sh re-applies this list every run.
 # Lines starting with # and blank lines are ignored.
 
 # --- Think — product interrogation ---

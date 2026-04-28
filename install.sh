@@ -6,26 +6,37 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1" >&2; exit 1; }; }
 need git
 need jq
-command -v bun >/dev/null 2>&1 || echo "warn: bun not found — gstack setup may fail. Install: https://bun.sh"
+# bun used to be required for gstack ./setup, but we now skip ./setup entirely
+# (see step 1). gstack's runtime bin/ scripts are all pure bash.
 
-echo "==> 1. Install / update gstack"
+echo "==> 1. Install / update gstack source (without ./setup)"
+# We deliberately skip gstack's ./setup because it hard-installs Playwright
+# Chromium (~500MB) + builds a 90MB browse binary, both only needed for
+# /browse /qa /design-review skills — all pruned by gstack-keep.txt.
+# Step 7 below replicates the only two pieces of ./setup we need: name:
+# field patching for the gstack- prefix, and SKILL.md symlink creation.
+# Caveat: running /gstack-upgrade will re-run ./setup and reinstall Playwright.
+# Use this script (./install.sh) to update gstack instead.
 mkdir -p ~/.claude/skills
 if [ -d ~/.claude/skills/gstack/.git ]; then
-  # Use fetch + reset --hard so previous prunes (e.g. deleted bare SKILL.md)
-  # don't block the update. ~/.claude/skills/gstack is a vendor checkout, not
-  # a working tree we edit by hand.
   (cd ~/.claude/skills/gstack && git fetch --depth 1 origin main && git reset --hard origin/main)
 else
   git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
 fi
-(cd ~/.claude/skills/gstack && ./setup)
+mkdir -p ~/.gstack/projects
 
 echo "==> 2. Configure gstack (prefix=on, proactive=off, terse, telemetry=off)"
 GS=~/.claude/skills/gstack/bin
+# GSTACK_SETUP_RUNNING=1 suppresses gstack-config's post-set relink hook.
+# Otherwise `set skill_prefix true` triggers gstack-relink which creates all
+# 42 wrappers in ~/.claude/skills/ — step 7 below would sweep + rebuild from
+# keep-list, but no point doing the work twice.
+export GSTACK_SETUP_RUNNING=1
 "$GS/gstack-config" set skill_prefix true
 "$GS/gstack-config" set proactive false
 "$GS/gstack-config" set explain_level terse
 "$GS/gstack-config" set telemetry off || true
+unset GSTACK_SETUP_RUNNING
 
 echo "==> 3. Install / update turbo"
 mkdir -p ~/.turbo
@@ -100,46 +111,63 @@ if [ -d "$REPO_DIR/skills" ] && [ -n "$(ls -A "$REPO_DIR/skills" 2>/dev/null)" ]
   done
 fi
 
-echo "==> 7. Prune gstack registrations to keep-list"
+echo "==> 7. Link gstack skills from keep-list (replaces gstack ./setup symlinking)"
 KEEP_FILE="$REPO_DIR/gstack-keep.txt"
+GSTACK_SRC="$HOME/.claude/skills/gstack"
+SKILLS_DIR="$HOME/.claude/skills"
+
+# Patch name: fields → gstack-<name> in source SKILL.md (mimics SKILL_PREFIX=true).
+# git reset --hard in step 1 reverts upstream's flat names, so this re-applies
+# the prefix every run. Pure bash, no Playwright/node deps.
+"$GSTACK_SRC/bin/gstack-patch-names" "$GSTACK_SRC" true >/dev/null 2>&1 || true
+
+# Sweep stale wrappers from previous runs / previous gstack ./setup invocations.
+# We rebuild from the keep-list, so any gstack-* wrapper not in the list is stale.
+for d in "$SKILLS_DIR"/gstack-*; do
+  [ -d "$d" ] || continue
+  rm -rf "$d"
+done
+# Also remove the bare /gstack browse skill if previously registered
+[ -f "$GSTACK_SRC/SKILL.md" ] && rm -f "$GSTACK_SRC/SKILL.md"
+
 if [ -f "$KEEP_FILE" ]; then
   KEEP_LINES=$(grep -vE '^\s*(#|$)' "$KEEP_FILE" || true)
   if [ -n "$KEEP_LINES" ]; then
-    KEEP_PATTERN=$(echo "$KEEP_LINES" | paste -sd '|' -)
-    # 6a. Prune gstack-* wrappers
-    pruned=0; kept=0
-    for d in "$HOME/.claude/skills"/gstack-*; do
-      [ -d "$d" ] || continue
-      name=$(basename "$d")
-      if echo "$name" | grep -qE "^($KEEP_PATTERN)$"; then
-        kept=$((kept + 1))
+    linked=0
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      # Map keep-list name to source dir: try `gstack-foo → foo`, else literal
+      stripped="${entry#gstack-}"
+      if [ -f "$GSTACK_SRC/$stripped/SKILL.md" ]; then
+        src_dir="$stripped"
+      elif [ -f "$GSTACK_SRC/$entry/SKILL.md" ]; then
+        src_dir="$entry"
+      elif [ "$entry" = "gstack" ]; then
+        echo "    skip 'gstack' bare skill — needs SKILL.md.tmpl rendering, not supported here"
+        continue
       else
-        rm -rf "$d"
-        pruned=$((pruned + 1))
+        echo "    WARN: keep-list entry '$entry' has no source dir, skipping"
+        continue
       fi
-    done
-    echo "    wrappers: pruned $pruned, kept $kept"
-    # 6b. Bare gstack skill (~/.claude/skills/gstack/SKILL.md is the browse skill)
-    BARE_SKILL="$HOME/.claude/skills/gstack/SKILL.md"
-    if echo "gstack" | grep -qE "^($KEEP_PATTERN)$"; then
-      [ -f "$BARE_SKILL" ] && echo "    bare gstack skill: kept (in keep-list)"
-    else
-      if [ -f "$BARE_SKILL" ]; then
-        rm -f "$BARE_SKILL"
-        echo "    bare gstack skill: removed (browse skill unregistered)"
-      fi
-    fi
-    # 6c. Defensive: ensure gstack didn't write SessionStart hooks into settings.json
-    if [ -f "$HOME/.claude/settings.json" ] && grep -q "gstack" "$HOME/.claude/settings.json" 2>/dev/null; then
-      echo "    WARN: ~/.claude/settings.json contains gstack reference — review with: grep gstack ~/.claude/settings.json"
-    fi
+      target="$SKILLS_DIR/$entry"
+      mkdir -p "$target"
+      ln -snf "$GSTACK_SRC/$src_dir/SKILL.md" "$target/SKILL.md"
+      linked=$((linked + 1))
+    done <<< "$KEEP_LINES"
+    echo "    linked $linked gstack skill(s) from keep-list"
   else
-    echo "    keep-list empty — keeping all gstack wrappers and bare skill"
+    echo "    keep-list empty — no gstack skills linked"
   fi
 else
-  echo "    no gstack-keep.txt — keeping all gstack wrappers and bare skill"
+  echo "    no gstack-keep.txt — no gstack skills linked"
 fi
-echo "    (gstack source intact at ~/.claude/skills/gstack/)"
+
+# Defensive: ensure gstack didn't write SessionStart hooks (safety guards do this).
+# We never run ./setup so this should always be clean, but keep the check as a tripwire.
+if [ -f "$HOME/.claude/settings.json" ] && grep -q "gstack" "$HOME/.claude/settings.json" 2>/dev/null; then
+  echo "    WARN: ~/.claude/settings.json contains gstack reference — review with: grep gstack ~/.claude/settings.json"
+fi
+echo "    (gstack source intact at ~/.claude/skills/gstack/, no Playwright installed)"
 
 echo "==> 8. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
 TARGET="$HOME/.claude/CLAUDE.md"
@@ -167,4 +195,4 @@ echo "    wrote turbo block to $TARGET"
 
 echo
 echo "Done."
-echo "Re-run this script anytime to pull latest gstack + turbo, re-sync skills, and re-prune."
+echo "Re-run this script anytime to pull latest gstack + turbo and re-link skills."
