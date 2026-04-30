@@ -169,7 +169,25 @@ if [ -f "$HOME/.claude/settings.json" ] && grep -q "gstack" "$HOME/.claude/setti
 fi
 echo "    (gstack source intact at ~/.claude/skills/gstack/, no Playwright installed)"
 
-echo "==> 8. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
+echo "==> 8. Configure context-tracking statusLine (only if unset)"
+# README §7: turbo workflows like /finalize burn context fast — knowing how much
+# is left prevents mid-workflow compaction. Use //= so we never overwrite a
+# fancier statusLine the user already has (e.g. claude-hud plugin).
+SETTINGS="$HOME/.claude/settings.json"
+mkdir -p "$HOME/.claude"
+[ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
+tmp=$(mktemp)
+jq '.statusLine //= {
+  "type": "command",
+  "command": "jq -r \"\\\"\\(.context_window.remaining_percentage | floor)% context left\\\"\""
+}' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+if jq -e '.statusLine.command | test("remaining_percentage")' "$SETTINGS" >/dev/null; then
+  echo "    installed default context-left statusLine"
+else
+  echo "    statusLine already set (kept existing)"
+fi
+
+echo "==> 9. Append turbo CLAUDE-ADDITIONS to ~/.claude/CLAUDE.md (idempotent)"
 TARGET="$HOME/.claude/CLAUDE.md"
 SRC="$HOME/.turbo/repo/CLAUDE-ADDITIONS.md"
 MARK_START="<!-- turbo:claude-additions:start -->"
